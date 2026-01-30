@@ -1,0 +1,83 @@
+name: vet_assistant
+description: Мобильное приложение-ассистент для ветеринара
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # UI & Navigation
+  cupertino_icons: ^1.0.6
+  go_router: ^13.0.0
+  flutter_riverpod: ^2.4.9
+  
+  # Database
+  drift: ^2.14.1
+  sqlite3_flutter_libs: ^0.5.18
+  path_provider: ^2.1.1
+  path: ^1.8.3
+  
+  # State Management
+  riverpod: ^2.4.9
+  
+  # File Operations
+  file_picker: ^6.1.1
+  share_plus: ^7.2.1
+  printing: ^5.12.0
+  pdf: ^3.10.7
+  
+  # Image Operations
+  image_picker: ^1.0.7
+  image: ^4.1.3
+  
+  # Audio
+  record: ^5.0.4
+  flutter_sound: ^9.2.13
+  permission_handler: ^11.1.0
+  
+  # Speech Recognition (Cloud)
+  http: ^1.1.2
+  dio: ^5.4.0
+  
+  # Speech Recognition (Offline - будет добавлено позже)
+  # whisper_flutter: ^0.0.1  # или vosk_flutter
+  
+  # Utils
+  uuid: ^4.2.1
+  intl: ^0.19.0
+  json_annotation: ^4.8.1
+  equatable: ^2.0.5
+  get_it: ^7.6.4
+  
+  # Security
+  flutter_secure_storage: ^9.0.0
+  crypto: ^3.0.3
+  
+  # Logging
+  logger: ^2.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.7
+  drift_dev: ^2.14.1
+  json_serializable: ^6.7.1
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/logo.png
+    - assets/templates/
+  
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: fonts/Roboto-Regular.ttf
+        - asset: fonts/Roboto-Bold.ttf
+          weight: 700

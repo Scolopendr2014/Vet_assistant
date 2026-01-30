@@ -1,0 +1,38 @@
+# WSL configuration file
+# This file configures the behavior of the WSL distribution
+# 
+# После редактирования скопируйте этот файл в WSL:
+# wsl sudo cp wsl.conf.template /etc/wsl.conf
+#
+# Или откройте напрямую в WSL:
+# wsl sudo nano /etc/wsl.conf
+
+[boot]
+# Включить systemd (раскомментируйте, если нужно)
+# systemd = true
+
+[network]
+# Автоматически генерировать файл /etc/hosts
+generateHosts = true
+# Автоматически генерировать файл /etc/resolv.conf
+generateResolvConf = true
+
+[interop]
+# Включить интеграцию с Windows
+enabled = true
+# Добавлять Windows пути в PATH
+appendWindowsPath = true
+
+[user]
+# Пользователь по умолчанию (раскомментируйте и укажите имя)
+# default = username
+
+[automount]
+# Включить автоматическое монтирование дисков Windows
+enabled = true
+# Корневая директория для монтирования
+root = /mnt/
+# Опции монтирования (метаданные, права доступа)
+options = "metadata,umask=22,fmask=11"
+# Монтировать /etc/fstab
+mountFsTab = true

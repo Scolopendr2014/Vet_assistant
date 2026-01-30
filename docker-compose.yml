@@ -1,0 +1,40 @@
+# Docker Compose конфигурация для локального GitLab
+# Использование: docker-compose up -d
+
+name: gitlab
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    container_name: gitlab
+    restart: always
+    hostname: 'localhost'
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost:8080'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+        # Отключить регистрацию (опционально)
+        # gitlab_rails['gitlab_signup_enabled'] = false
+    ports:
+      - '8080:80'      # HTTP
+      - '443:443'    # HTTPS
+      - '2222:22'    # SSH
+    volumes:
+      - './gitlab/config:/etc/gitlab'
+      - './gitlab/logs:/var/log/gitlab'
+      - './gitlab/data:/var/opt/gitlab'
+    shm_size: '512m'
+    # Долгий start_period: GitLab запускается 10–15 мин, не считать unhealthy пока идёт старт
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/-/health || exit 1"]
+      start_period: 900s
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    # Требования к ресурсам (PostgreSQL внутри контейнера нуждается в достаточной памяти)
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 2G

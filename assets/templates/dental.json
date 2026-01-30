@@ -1,0 +1,184 @@
+{
+  "id": "dental",
+  "version": "1.0.0",
+  "locale": "ru",
+  "title": "Стоматологический протокол",
+  "description": "Шаблон для стоматологических обследований",
+  "sections": [
+    {
+      "id": "general",
+      "title": "Общий осмотр",
+      "order": 1,
+      "fields": [
+        {
+          "key": "occlusion",
+          "label": "Прикус",
+          "type": "select",
+          "options": ["нормальный", "неправильный", "перекус", "недокус"],
+          "required": false,
+          "extraction": {
+            "keywords": ["прикус", "окклюзия"]
+          }
+        },
+        {
+          "key": "gingivitis",
+          "label": "Гингивит",
+          "type": "select",
+          "options": ["нет", "лёгкий", "умеренный", "тяжёлый"],
+          "required": false,
+          "extraction": {
+            "keywords": ["гингивит", "десна", "воспаление"]
+          }
+        },
+        {
+          "key": "bleeding",
+          "label": "Кровоточивость дёсен",
+          "type": "bool",
+          "required": false,
+          "extraction": {
+            "keywords": ["кровоточивость", "кровь", "десна"]
+          }
+        },
+        {
+          "key": "calculus",
+          "label": "Зубной камень",
+          "type": "select",
+          "options": ["нет", "лёгкий", "умеренный", "тяжёлый"],
+          "required": false,
+          "extraction": {
+            "keywords": ["камень", "зубной камень", "отложения"]
+          }
+        },
+        {
+          "key": "plaque",
+          "label": "Налёт",
+          "type": "select",
+          "options": ["нет", "лёгкий", "умеренный", "тяжёлый"],
+          "required": false,
+          "extraction": {
+            "keywords": ["налёт", "бляшка"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "teeth",
+      "title": "Состояние зубов",
+      "order": 2,
+      "fields": [
+        {
+          "key": "teethChart",
+          "label": "Карта зубов",
+          "type": "text",
+          "required": false,
+          "description": "Описание состояния каждого зуба (номер зуба: состояние)"
+        }
+      ],
+      "tables": [
+        {
+          "id": "teethStatus",
+          "name": "Статус зубов",
+          "columns": [
+            {"key": "toothNumber", "label": "Номер зуба", "type": "text"},
+            {"key": "status", "label": "Статус", "type": "select", "options": ["здоров", "кариес", "перелом", "отсутствует", "пломба", "коронка"]},
+            {"key": "notes", "label": "Примечания", "type": "text"}
+          ],
+          "dynamic": true
+        }
+      ]
+    },
+    {
+      "id": "periodontal",
+      "title": "Пародонтальные показатели",
+      "order": 3,
+      "fields": [
+        {
+          "key": "pocketDepth",
+          "label": "Глубина карманов",
+          "type": "text",
+          "unit": "мм",
+          "required": false,
+          "validation": {
+            "min": 0,
+            "max": 15,
+            "warnOnly": true
+          },
+          "extraction": {
+            "keywords": ["карман", "глубина", "пародонтальный"]
+          }
+        },
+        {
+          "key": "recession",
+          "label": "Рецессия",
+          "type": "text",
+          "unit": "мм",
+          "required": false,
+          "extraction": {
+            "keywords": ["рецессия", "опущение"]
+          }
+        },
+        {
+          "key": "mobility",
+          "label": "Подвижность зубов",
+          "type": "select",
+          "options": ["нет", "I степень", "II степень", "III степень"],
+          "required": false,
+          "extraction": {
+            "keywords": ["подвижность", "мобильность"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "conclusion",
+      "title": "Заключение и план лечения",
+      "order": 4,
+      "fields": [
+        {
+          "key": "diagnosis",
+          "label": "Диагноз",
+          "type": "text",
+          "required": true,
+          "extraction": {
+            "keywords": ["диагноз", "заключение"]
+          }
+        },
+        {
+          "key": "treatmentPlan",
+          "label": "План лечения",
+          "type": "text",
+          "required": false,
+          "extraction": {
+            "keywords": ["план", "лечение", "терапия"]
+          }
+        },
+        {
+          "key": "recommendations",
+          "label": "Рекомендации",
+          "type": "text",
+          "required": false,
+          "extraction": {
+            "keywords": ["рекомендации", "профилактика"]
+          }
+        },
+        {
+          "key": "nextVisit",
+          "label": "Дата следующего визита",
+          "type": "date",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "pdfLayout": {
+    "header": {
+      "logo": "assets/logo.png",
+      "title": "Стоматологический протокол",
+      "showPatientInfo": true
+    },
+    "footer": {
+      "pageNumbers": true,
+      "showDate": true
+    }
+  }
+}

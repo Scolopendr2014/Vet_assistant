@@ -1,0 +1,212 @@
+{
+  "id": "ultrasound",
+  "version": "1.0.0",
+  "locale": "ru",
+  "title": "Протокол ультразвукового исследования",
+  "description": "Шаблон для УЗИ обследований",
+  "sections": [
+    {
+      "id": "equipment",
+      "title": "Оборудование",
+      "order": 1,
+      "fields": [
+        {
+          "key": "device",
+          "label": "Аппарат",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "probe",
+          "label": "Датчик",
+          "type": "text",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "liver",
+      "title": "Печень",
+      "order": 2,
+      "fields": [
+        {
+          "key": "liverSize",
+          "label": "Размер печени",
+          "type": "text",
+          "unit": "мм",
+          "required": false,
+          "extraction": {
+            "keywords": ["печень", "размер печени"]
+          }
+        },
+        {
+          "key": "liverEchogenicity",
+          "label": "Эхогенность",
+          "type": "select",
+          "options": ["нормальная", "повышена", "понижена", "неоднородная"],
+          "required": false,
+          "extraction": {
+            "keywords": ["эхогенность", "печень", "эхогенный"]
+          }
+        },
+        {
+          "key": "liverStructure",
+          "label": "Структура",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "liverNotes",
+          "label": "Примечания",
+          "type": "text",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "kidneys",
+      "title": "Почки",
+      "order": 3,
+      "fields": [
+        {
+          "key": "leftKidneySize",
+          "label": "Размер левой почки",
+          "type": "text",
+          "unit": "мм",
+          "required": false,
+          "extraction": {
+            "keywords": ["левая почка", "размер"]
+          }
+        },
+        {
+          "key": "rightKidneySize",
+          "label": "Размер правой почки",
+          "type": "text",
+          "unit": "мм",
+          "required": false,
+          "extraction": {
+            "keywords": ["правая почка", "размер"]
+          }
+        },
+        {
+          "key": "kidneysEchogenicity",
+          "label": "Эхогенность почек",
+          "type": "select",
+          "options": ["нормальная", "повышена", "понижена"],
+          "required": false
+        },
+        {
+          "key": "kidneysNotes",
+          "label": "Примечания",
+          "type": "text",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "bladder",
+      "title": "Мочевой пузырь",
+      "order": 4,
+      "fields": [
+        {
+          "key": "bladderSize",
+          "label": "Размер мочевого пузыря",
+          "type": "text",
+          "unit": "мм",
+          "required": false,
+          "extraction": {
+            "keywords": ["мочевой пузырь", "размер"]
+          }
+        },
+        {
+          "key": "bladderWall",
+          "label": "Толщина стенки",
+          "type": "number",
+          "unit": "мм",
+          "required": false,
+          "validation": {
+            "min": 1,
+            "max": 10,
+            "warnOnly": true
+          }
+        },
+        {
+          "key": "bladderContents",
+          "label": "Содержимое",
+          "type": "text",
+          "required": false,
+          "extraction": {
+            "keywords": ["содержимое", "осадок", "камни", "мочевой пузырь"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "heart",
+      "title": "Сердце",
+      "order": 5,
+      "fields": [
+        {
+          "key": "heartChambers",
+          "label": "Размеры камер",
+          "type": "text",
+          "required": false,
+          "extraction": {
+            "keywords": ["сердце", "камеры", "предсердие", "желудочек"]
+          }
+        },
+        {
+          "key": "heartValves",
+          "label": "Состояние клапанов",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "heartEjectionFraction",
+          "label": "Фракция выброса",
+          "type": "number",
+          "unit": "%",
+          "required": false,
+          "validation": {
+            "min": 30,
+            "max": 80,
+            "warnOnly": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "conclusion",
+      "title": "Заключение",
+      "order": 6,
+      "fields": [
+        {
+          "key": "diagnosis",
+          "label": "Диагноз",
+          "type": "text",
+          "required": true,
+          "extraction": {
+            "keywords": ["диагноз", "заключение"]
+          }
+        },
+        {
+          "key": "recommendations",
+          "label": "Рекомендации",
+          "type": "text",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "pdfLayout": {
+    "header": {
+      "logo": "assets/logo.png",
+      "title": "Протокол ультразвукового исследования",
+      "showPatientInfo": true
+    },
+    "footer": {
+      "pageNumbers": true,
+      "showDate": true
+    }
+  }
+}

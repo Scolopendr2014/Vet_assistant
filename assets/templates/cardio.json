@@ -1,0 +1,209 @@
+{
+  "id": "cardio",
+  "version": "1.0.0",
+  "locale": "ru",
+  "title": "Протокол кардиологического осмотра",
+  "description": "Шаблон для кардиологических обследований",
+  "sections": [
+    {
+      "id": "vitals",
+      "title": "Основные показатели",
+      "order": 1,
+      "fields": [
+        {
+          "key": "hr",
+          "label": "ЧСС",
+          "type": "number",
+          "unit": "уд/мин",
+          "required": true,
+          "validation": {
+            "min": 40,
+            "max": 240,
+            "warnOnly": false
+          },
+          "extraction": {
+            "patterns": [
+              "ЧСС\\s*(?:[:=]\\s*)?(\\d+)",
+              "частота\\s*(?:сердечных\\s*)?сокращений\\s*(?:[:=]\\s*)?(\\d+)",
+              "пульс\\s*(?:[:=]\\s*)?(\\d+)"
+            ],
+            "keywords": ["ЧСС", "частота сокращений", "пульс"]
+          }
+        },
+        {
+          "key": "rhythm",
+          "label": "Ритм",
+          "type": "select",
+          "options": ["синусовый", "аритмия", "мерцательная аритмия", "экстрасистолия", "другое"],
+          "required": true,
+          "extraction": {
+            "keywords": ["ритм", "синусовый", "аритмия", "мерцательная", "экстрасистолия"]
+          }
+        },
+        {
+          "key": "tones",
+          "label": "Тоны сердца",
+          "type": "text",
+          "required": true,
+          "extraction": {
+            "keywords": ["тоны", "тоны сердца", "первый тон", "второй тон"]
+          }
+        },
+        {
+          "key": "murmurs",
+          "label": "Шумы",
+          "type": "select",
+          "options": ["нет", "систолический", "диастолический", "систоло-диастолический"],
+          "required": false,
+          "extraction": {
+            "keywords": ["шумы", "шум", "систолический", "диастолический"]
+          }
+        },
+        {
+          "key": "bloodPressure",
+          "label": "Артериальное давление",
+          "type": "text",
+          "unit": "мм рт.ст.",
+          "required": false,
+          "validation": {
+            "pattern": "^\\d+\\s*/\\s*\\d+$",
+            "warnOnly": true
+          },
+          "extraction": {
+            "patterns": [
+              "АД\\s*(?:[:=]\\s*)?(\\d+)\\s*/\\s*(\\d+)",
+              "артериальное\\s*давление\\s*(?:[:=]\\s*)?(\\d+)\\s*/\\s*(\\d+)",
+              "давление\\s*(?:[:=]\\s*)?(\\d+)\\s*/\\s*(\\d+)"
+            ],
+            "keywords": ["АД", "артериальное давление", "давление"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "ecg",
+      "title": "Данные ЭКГ",
+      "order": 2,
+      "fields": [
+        {
+          "key": "ecgRhythm",
+          "label": "Ритм на ЭКГ",
+          "type": "select",
+          "options": ["синусовый", "мерцательная аритмия", "экстрасистолия", "другое"],
+          "required": false,
+          "extraction": {
+            "keywords": ["ЭКГ", "электрокардиограмма", "ритм на ЭКГ"]
+          }
+        },
+        {
+          "key": "pqInterval",
+          "label": "Интервал P-Q",
+          "type": "number",
+          "unit": "сек",
+          "required": false,
+          "validation": {
+            "min": 0.08,
+            "max": 0.20,
+            "warnOnly": true
+          },
+          "extraction": {
+            "patterns": [
+              "P-Q\\s*(?:[:=]\\s*)?(\\d+(?:\\.\\d+)?)",
+              "PQ\\s*(?:[:=]\\s*)?(\\d+(?:\\.\\d+)?)"
+            ],
+            "keywords": ["P-Q", "PQ", "интервал P-Q"]
+          }
+        },
+        {
+          "key": "qrsInterval",
+          "label": "Интервал QRS",
+          "type": "number",
+          "unit": "сек",
+          "required": false,
+          "validation": {
+            "min": 0.04,
+            "max": 0.12,
+            "warnOnly": true
+          },
+          "extraction": {
+            "patterns": [
+              "QRS\\s*(?:[:=]\\s*)?(\\d+(?:\\.\\d+)?)"
+            ],
+            "keywords": ["QRS", "интервал QRS"]
+          }
+        },
+        {
+          "key": "qtInterval",
+          "label": "Интервал Q-T",
+          "type": "number",
+          "unit": "сек",
+          "required": false,
+          "extraction": {
+            "patterns": [
+              "Q-T\\s*(?:[:=]\\s*)?(\\d+(?:\\.\\d+)?)",
+              "QT\\s*(?:[:=]\\s*)?(\\d+(?:\\.\\d+)?)"
+            ],
+            "keywords": ["Q-T", "QT", "интервал Q-T"]
+          }
+        },
+        {
+          "key": "ecgNotes",
+          "label": "Примечания по ЭКГ",
+          "type": "text",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "conclusion",
+      "title": "Заключение и рекомендации",
+      "order": 3,
+      "fields": [
+        {
+          "key": "diagnosis",
+          "label": "Диагноз",
+          "type": "text",
+          "required": true,
+          "extraction": {
+            "keywords": ["диагноз", "заключение"]
+          }
+        },
+        {
+          "key": "recommendations",
+          "label": "Рекомендации",
+          "type": "text",
+          "required": false,
+          "extraction": {
+            "keywords": ["рекомендации", "рекомендую", "назначено"]
+          }
+        },
+        {
+          "key": "treatment",
+          "label": "Назначенное лечение",
+          "type": "text",
+          "required": false,
+          "extraction": {
+            "keywords": ["лечение", "терапия", "назначено", "препараты"]
+          }
+        },
+        {
+          "key": "nextVisit",
+          "label": "Дата следующего визита",
+          "type": "date",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "pdfLayout": {
+    "header": {
+      "logo": "assets/logo.png",
+      "title": "Протокол кардиологического осмотра",
+      "showPatientInfo": true
+    },
+    "footer": {
+      "pageNumbers": true,
+      "showDate": true
+    }
+  }
+}

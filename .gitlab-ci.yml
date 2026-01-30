@@ -1,0 +1,84 @@
+# GitLab CI/CD конфигурация для Flutter проекта
+
+stages:
+  - analyze
+  - test
+  - build
+
+variables:
+  FLUTTER_VERSION: "3.16.0"
+
+# Кэш для зависимостей
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .pub-cache/
+    - .dart_tool/
+
+before_script:
+  - echo "Flutter version check"
+  - flutter --version || echo "Flutter not found, will install"
+  - flutter pub get
+
+# Анализ кода
+analyze:
+  stage: analyze
+  script:
+    - flutter analyze
+    - dart format --set-exit-if-changed .
+  only:
+    - merge_requests
+    - main
+    - develop
+  allow_failure: false
+
+# Тесты
+test:
+  stage: test
+  script:
+    - flutter test
+  coverage: '/Coverage: \d+\.\d+% of lines/'
+  only:
+    - merge_requests
+    - main
+    - develop
+  allow_failure: false
+
+# Сборка Android APK (только для тегов/релизов)
+build_android:
+  stage: build
+  script:
+    - flutter build apk --release
+  artifacts:
+    paths:
+      - build/app/outputs/flutter-apk/app-release.apk
+    expire_in: 1 week
+  only:
+    - tags
+  when: manual
+
+# Сборка Android App Bundle (для публикации в Play Store)
+build_android_bundle:
+  stage: build
+  script:
+    - flutter build appbundle --release
+  artifacts:
+    paths:
+      - build/app/outputs/bundle/release/app-release.aab
+    expire_in: 1 week
+  only:
+    - tags
+  when: manual
+
+# Сборка iOS (только для тегов/релизов)
+build_ios:
+  stage: build
+  script:
+    - flutter build ios --release --no-codesign
+  artifacts:
+    paths:
+      - build/ios/iphoneos/Runner.app
+    expire_in: 1 week
+  only:
+    - tags
+  when: manual
