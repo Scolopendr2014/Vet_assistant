@@ -34,6 +34,7 @@ class Examinations extends Table {
   IntColumn get examinationDate => integer()();
   TextColumn get veterinarianName => text().nullable()();
   TextColumn get audioFilePaths => text().nullable()(); // JSON array
+  TextColumn get anamnesis => text().nullable()(); // Анамнез (голос или ручной ввод)
   TextColumn get sttText => text().nullable()();
   TextColumn get sttProvider => text().nullable()();
   TextColumn get sttModelVersion => text().nullable()();
@@ -108,7 +109,11 @@ class AppDatabase extends _$AppDatabase {
         await customStatement('CREATE INDEX idx_examination_photos_examination ON examination_photos(examination_id)');
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Миграции будут добавлены по мере необходимости
+        if (from < 3) {
+          await customStatement(
+            'ALTER TABLE examinations ADD COLUMN anamnesis TEXT',
+          );
+        }
       },
     );
   }
