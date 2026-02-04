@@ -24,8 +24,8 @@ dependencies:
   # State Management
   riverpod: ^2.4.9
   
-  # File Operations
-  file_picker: ^6.1.1
+  # File Operations (^8+ требуется для Flutter embedding v2)
+  file_picker: ^8.0.0
   share_plus: ^7.2.1
   printing: ^5.12.0
   pdf: ^3.10.7
@@ -48,6 +48,7 @@ dependencies:
   
   # Utils
   uuid: ^4.2.1
+  archive: ^3.4.10
   intl: ^0.19.0
   json_annotation: ^4.8.1
   equatable: ^2.0.5
@@ -59,6 +60,11 @@ dependencies:
   
   # Logging
   logger: ^2.0.2
+
+dependency_overrides:
+  # record_linux 0.7.2 не реализует startStream; фиксируем совместимые версии
+  record_platform_interface: 1.4.0
+  record_linux: ^1.2.1
 
 dev_dependencies:
   flutter_test:
@@ -74,10 +80,3 @@ flutter:
   assets:
     - assets/logo.png
     - assets/templates/
-  
-  fonts:
-    - family: Roboto
-      fonts:
-        - asset: fonts/Roboto-Regular.ttf
-        - asset: fonts/Roboto-Bold.ttf
-          weight: 700

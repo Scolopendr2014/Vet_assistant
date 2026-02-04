@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import '../patients/presentation/pages/patients_list_page.dart';
 import '../patients/presentation/pages/patient_detail_page.dart';
+import '../patients/presentation/pages/patient_form_page.dart';
 import '../examinations/presentation/pages/examination_create_page.dart';
 import '../examinations/presentation/pages/examination_detail_page.dart';
 import '../admin/presentation/pages/admin_login_page.dart';
@@ -17,14 +18,29 @@ class AppRouter {
           path: '/patients',
           name: 'patients',
           builder: (context, state) => const PatientsListPage(),
-        ),
-        GoRoute(
-          path: '/patients/:id',
-          name: 'patient-detail',
-          builder: (context, state) {
-            final id = state.pathParameters['id']!;
-            return PatientDetailPage(patientId: id);
-          },
+          routes: [
+            GoRoute(
+              path: 'new',
+              name: 'patient-new',
+              builder: (context, state) => const PatientFormPage(),
+            ),
+            GoRoute(
+              path: ':id',
+              name: 'patient-detail',
+              builder: (context, state) {
+                final id = state.pathParameters['id']!;
+                return PatientDetailPage(patientId: id);
+              },
+            ),
+            GoRoute(
+              path: ':id/edit',
+              name: 'patient-edit',
+              builder: (context, state) {
+                final id = state.pathParameters['id']!;
+                return PatientFormPage(patientId: id);
+              },
+            ),
+          ],
         ),
         GoRoute(
           path: '/examinations/create',

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
@@ -105,7 +107,7 @@ class AppDatabase extends _$AppDatabase {
         await customStatement('CREATE INDEX idx_patients_owner ON patients(owner_name)');
         await customStatement('CREATE INDEX idx_examinations_patient ON examinations(patient_id)');
         await customStatement('CREATE INDEX idx_examinations_date ON examinations(examination_date)');
-        await customStatement('CREATE INDEX idx_references_type ON references(type)');
+        await customStatement('CREATE INDEX idx_references_type ON "references"(type)');
         await customStatement('CREATE INDEX idx_examination_photos_examination ON examination_photos(examination_id)');
       },
       onUpgrade: (Migrator m, int from, int to) async {
@@ -122,7 +124,7 @@ class AppDatabase extends _$AppDatabase {
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
-    final file = p.join(dbFolder.path, AppConfig.dbName);
-    return NativeDatabase(file);
+    final path = p.join(dbFolder.path, AppConfig.dbName);
+    return NativeDatabase(File(path));
   });
 }

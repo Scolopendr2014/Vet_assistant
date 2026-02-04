@@ -15,6 +15,9 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
+# Разрешаем общие конфигурации запуска (чтобы Android Studio видел Flutter)
+!.idea/runConfigurations/
+!.idea/runConfigurations/*
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
@@ -94,6 +97,7 @@ gitlab/
 
 # Generated files
 *.g.dart
+!lib/core/database/app_database.g.dart
 *.freezed.dart
 *.mocks.dart
 
