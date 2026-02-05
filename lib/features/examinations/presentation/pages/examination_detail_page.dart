@@ -10,6 +10,7 @@ import '../../../../core/di/di_container.dart';
 import '../../../patients/domain/repositories/patient_repository.dart';
 import '../../../pdf/services/protocol_pdf_service.dart';
 import '../../domain/repositories/examination_repository.dart';
+import '../../services/audio_playback_service.dart';
 import '../providers/examination_providers.dart';
 
 /// Детали протокола осмотра (ТЗ 4.3).
@@ -173,17 +174,7 @@ class ExaminationDetailPage extends ConsumerWidget {
                         ),
                   ),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (var i = 0; i < exam.audioFilePaths.length; i++)
-                        Chip(
-                          avatar: const Icon(Icons.audiotrack, size: 20),
-                          label: Text('Запись ${i + 1}'),
-                        ),
-                    ],
-                  ),
+                  _AudioRecordingsWithPlayback(paths: exam.audioFilePaths),
                 ],
               ],
             ),
@@ -232,5 +223,74 @@ class ExaminationDetailPage extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+/// VET-052: список аудиозаписей с кнопкой Старт/Стоп для прослушивания.
+class _AudioRecordingsWithPlayback extends StatefulWidget {
+  const _AudioRecordingsWithPlayback({required this.paths});
+
+  final List<String> paths;
+
+  @override
+  State<_AudioRecordingsWithPlayback> createState() =>
+      _AudioRecordingsWithPlaybackState();
+}
+
+class _AudioRecordingsWithPlaybackState
+    extends State<_AudioRecordingsWithPlayback> {
+  final AudioPlaybackService _playback = AudioPlaybackService();
+  int? _playingIndex;
+
+  @override
+  void dispose() {
+    _playback.dispose();
+    super.dispose();
+  }
+
+  Future<void> _togglePlay(int index) async {
+    if (index < 0 || index >= widget.paths.length) return;
+    if (_playingIndex == index) {
+      await _playback.stopPlayback();
+      if (!mounted) return;
+      setState(() => _playingIndex = null);
+      return;
+    }
+    await _playback.stopPlayback();
+    await _playback.startPlayback(
+      path: widget.paths[index],
+      whenFinished: () {
+        if (mounted) setState(() => _playingIndex = null);
+      },
+    );
+    if (!mounted) return;
+    setState(() => _playingIndex = index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (var i = 0; i < widget.paths.length; i++)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Chip(
+                avatar: const Icon(Icons.audiotrack, size: 20),
+                label: Text('Запись ${i + 1}'),
+              ),
+              IconButton(
+                onPressed: () => _togglePlay(i),
+                icon: Icon(
+                  _playingIndex == i ? Icons.stop : Icons.play_arrow,
+                ),
+                tooltip: _playingIndex == i ? 'Остановить' : 'Прослушать',
+              ),
+            ],
+          ),
+      ],
+    );
   }
 }

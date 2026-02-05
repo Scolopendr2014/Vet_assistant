@@ -13,6 +13,7 @@ import '../../../../core/di/di_container.dart';
 import '../../domain/entities/examination.dart';
 import '../../domain/entities/examination_photo.dart';
 import '../../domain/repositories/examination_repository.dart';
+import '../../services/audio_playback_service.dart';
 import '../../services/audio_recorder_service.dart';
 import '../../../templates/domain/entities/protocol_template.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
@@ -46,9 +47,12 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
   final List<String> _audioPaths = [];
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorderService _audioRecorder = AudioRecorderService();
+  final AudioPlaybackService _audioPlayback = AudioPlaybackService();
   bool _isRecording = false;
   bool _isPaused = false;
   bool _isTranscribing = false;
+  /// VET-052: индекс воспроизводимой записи или null.
+  int? _playingAudioIndex;
   /// При редактировании: загруженный протокол (для сохранения id, дат, фото).
   Examination? _existingExam;
   bool _initializedForEdit = false;
@@ -57,6 +61,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
   void dispose() {
     _anamnesisController.dispose();
     _audioRecorder.dispose();
+    _audioPlayback.dispose();
     super.dispose();
   }
 
@@ -322,12 +327,42 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                   runSpacing: 8,
                   children: [
                     for (var i = 0; i < _audioPaths.length; i++)
-                      Chip(
-                        avatar: const Icon(Icons.audiotrack, size: 20),
-                        label: Text('Запись ${i + 1}'),
-                        onDeleted: () {
-                          setState(() => _audioPaths.removeAt(i));
-                        },
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Chip(
+                            avatar: const Icon(Icons.audiotrack, size: 20),
+                            label: Text('Запись ${i + 1}'),
+                            onDeleted: () {
+                              if (_playingAudioIndex == i) {
+                                _audioPlayback.stopPlayback();
+                                setState(() {
+                                  _playingAudioIndex = null;
+                                  _audioPaths.removeAt(i);
+                                });
+                              } else {
+                                setState(() {
+                                  if (_playingAudioIndex != null &&
+                                      i < _playingAudioIndex!) {
+                                    _playingAudioIndex = _playingAudioIndex! - 1;
+                                  }
+                                  _audioPaths.removeAt(i);
+                                });
+                              }
+                            },
+                          ),
+                          IconButton(
+                            onPressed: () => _togglePlayRecording(i),
+                            icon: Icon(
+                              _playingAudioIndex == i
+                                  ? Icons.stop
+                                  : Icons.play_arrow,
+                            ),
+                            tooltip: _playingAudioIndex == i
+                                ? 'Остановить'
+                                : 'Прослушать',
+                          ),
+                        ],
                       ),
                   ],
                 ),
@@ -469,6 +504,26 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     if (path != null && path.isNotEmpty) {
       setState(() => _audioPaths.add(path));
     }
+  }
+
+  /// VET-052: старт/стоп прослушивания записи по индексу.
+  Future<void> _togglePlayRecording(int index) async {
+    if (index < 0 || index >= _audioPaths.length) return;
+    if (_playingAudioIndex == index) {
+      await _audioPlayback.stopPlayback();
+      if (!mounted) return;
+      setState(() => _playingAudioIndex = null);
+      return;
+    }
+    await _audioPlayback.stopPlayback();
+    await _audioPlayback.startPlayback(
+      path: _audioPaths[index],
+      whenFinished: () {
+        if (mounted) setState(() => _playingAudioIndex = null);
+      },
+    );
+    if (!mounted) return;
+    setState(() => _playingAudioIndex = index);
   }
 
   /// VET-019: распознать первый аудиофайл через STT и авто-заполнить поля по шаблону.
