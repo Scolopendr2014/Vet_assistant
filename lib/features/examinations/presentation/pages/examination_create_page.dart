@@ -117,8 +117,9 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
             ),
         ],
       ),
-      body: isEditMode && examAsync != null
-          ? examAsync.when(
+      body: SafeArea(
+        child: isEditMode && examAsync != null
+            ? examAsync.when(
               data: (exam) {
                 if (exam == null) {
                   return const Center(child: Text('Протокол не найден'));
@@ -131,7 +132,8 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Ошибка: $e')),
             )
-          : _buildForm(context, templatesAsync, patientAsync, effectivePatientId, false),
+            : _buildForm(context, templatesAsync, patientAsync, effectivePatientId, false),
+      ),
     );
   }
 

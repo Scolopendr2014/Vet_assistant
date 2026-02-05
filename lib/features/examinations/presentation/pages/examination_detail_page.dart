@@ -42,8 +42,9 @@ class ExaminationDetailPage extends ConsumerWidget {
           ),
         ],
       ),
-      body: asyncExam.when(
-        data: (exam) {
+      body: SafeArea(
+        child: asyncExam.when(
+          data: (exam) {
           if (exam == null) {
             return const Center(child: Text('Протокол не найден'));
           }
@@ -184,8 +185,9 @@ class ExaminationDetailPage extends ConsumerWidget {
             ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Ошибка: $e')),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Ошибка: $e')),
+        ),
       ),
     );
   }
