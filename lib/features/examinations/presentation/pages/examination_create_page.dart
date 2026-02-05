@@ -134,6 +134,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     );
   }
 
+  /// VET-049: скроллится весь протокол кроме поля «Пациент».
   Widget _buildForm(
     BuildContext context,
     AsyncValue<List<ProtocolTemplate>> templatesAsync,
@@ -163,16 +164,21 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(
-            'Тип протокола',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(
+                    'Тип протокола',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
                 ),
-          ),
-        ),
-        if (isEditMode)
+                if (isEditMode)
           templatesAsync.when(
             data: (templates) {
               String title = _selectedTemplateId ?? '';
@@ -372,17 +378,16 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                   ),
                 ),
               ),
-            Expanded(
-              child: _TemplateFormSection(
-                templateId: _selectedTemplateId!,
-                values: _formValues,
-                onChanged: (key, value) {
-                  setState(() {
-                    _formValues[key] = value;
-                    _validationError = null;
-                  });
-                },
-              ),
+            _TemplateFormSection(
+              templateId: _selectedTemplateId!,
+              values: _formValues,
+              onChanged: (key, value) {
+                setState(() {
+                  _formValues[key] = value;
+                  _validationError = null;
+                });
+              },
+              scrollable: false,
             ),
             Padding(
               padding: const EdgeInsets.all(16),
@@ -395,13 +400,18 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
               ),
             ),
           ] else
-            const Expanded(
+            const Padding(
+              padding: EdgeInsets.all(24),
               child: Center(
                 child: Text('Выберите тип протокола выше'),
               ),
             ),
-        ],
-      );
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _startRecording() async {
@@ -641,11 +651,14 @@ class _TemplateFormSection extends ConsumerWidget {
     required this.templateId,
     required this.values,
     required this.onChanged,
+    this.scrollable = true,
   });
 
   final String templateId;
   final Map<String, dynamic> values;
   final void Function(String key, dynamic value) onChanged;
+  /// VET-049: false — форма внутри общего скролла страницы.
+  final bool scrollable;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -655,13 +668,15 @@ class _TemplateFormSection extends ConsumerWidget {
         if (template == null) {
           return const Center(child: Text('Шаблон не найден'));
         }
-        return SingleChildScrollView(
-          child: TemplateFormBuilder(
-            template: template,
-            values: values,
-            onChanged: onChanged,
-          ),
+        final form = TemplateFormBuilder(
+          template: template,
+          values: values,
+          onChanged: onChanged,
         );
+        if (scrollable) {
+          return SingleChildScrollView(child: form);
+        }
+        return form;
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Ошибка: $e')),
