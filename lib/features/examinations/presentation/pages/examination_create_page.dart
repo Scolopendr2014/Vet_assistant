@@ -151,15 +151,38 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
             data: (p) => p != null
                 ? Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Text(
-                          'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                      ),
-                    ),
+                    child: isEditMode && _selectedTemplateId != null
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Icon(
+                                iconForTemplateId(_selectedTemplateId!),
+                                size: 28,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Card(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Text(
+                                      'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
+                                      style: Theme.of(context).textTheme.titleSmall,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text(
+                                'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                            ),
+                          ),
                   )
                 : const SizedBox.shrink(),
             loading: () => const SizedBox.shrink(),
@@ -170,34 +193,8 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (isEditMode)
-          templatesAsync.when(
-            data: (templates) {
-              String title = _selectedTemplateId ?? '';
-              for (final t in templates) {
-                if (t.id == _selectedTemplateId) {
-                  title = t.title;
-                  break;
-                }
-              }
-              final templateId = _selectedTemplateId ?? '';
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Tooltip(
-                  message: title,
-                  child: Chip(
-                    label: Icon(iconForTemplateId(templateId), size: 28),
-                    deleteIcon: const SizedBox.shrink(),
-                    onDeleted: null,
-                  ),
-                ),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          )
-        else
-          templatesAsync.when(
+                if (!isEditMode)
+                  templatesAsync.when(
             data: (templates) {
               if (templates.isEmpty) {
                 return const Padding(

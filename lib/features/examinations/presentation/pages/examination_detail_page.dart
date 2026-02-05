@@ -12,6 +12,8 @@ import '../../../pdf/services/protocol_pdf_service.dart';
 import '../../domain/repositories/examination_repository.dart';
 import '../../services/audio_playback_service.dart';
 import '../../utils/template_icons.dart';
+import '../../../templates/domain/entities/protocol_template.dart';
+import '../../../templates/presentation/providers/template_providers.dart';
 import '../providers/examination_providers.dart';
 
 /// Детали протокола осмотра (ТЗ 4.3).
@@ -45,6 +47,7 @@ class ExaminationDetailPage extends ConsumerWidget {
           if (exam == null) {
             return const Center(child: Text('Протокол не найден'));
           }
+          final templateAsync = ref.watch(templateByIdProvider(exam.templateType));
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -86,26 +89,23 @@ class ExaminationDetailPage extends ConsumerWidget {
                         ),
                   ),
                   const SizedBox(height: 8),
-                  ...exam.extractedFields.entries.map((e) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              width: 140,
-                              child: Text(
-                                '${e.key}:',
-                                style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                                child: Text(e.value?.toString() ?? '—')),
-                          ],
-                        ),
-                      )),
+                  templateAsync.when(
+                    data: (template) => _buildExtractedFields(
+                      context,
+                      exam.extractedFields,
+                      template,
+                    ),
+                    loading: () => _buildExtractedFields(
+                      context,
+                      exam.extractedFields,
+                      null,
+                    ),
+                    error: (_, __) => _buildExtractedFields(
+                      context,
+                      exam.extractedFields,
+                      null,
+                    ),
+                  ),
                 ],
                 if (exam.photos.isNotEmpty) ...[
                   const SizedBox(height: 16),
@@ -187,6 +187,48 @@ class ExaminationDetailPage extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Ошибка: $e')),
       ),
+    );
+  }
+
+  /// VET-059: русское наименование поля из шаблона по ключу.
+  static String _labelForKey(ProtocolTemplate? template, String key) {
+    if (template == null) return key;
+    for (final section in template.sections) {
+      for (final field in section.fields) {
+        if (field.key == key) return field.label;
+      }
+    }
+    return key;
+  }
+
+  static Widget _buildExtractedFields(
+    BuildContext context,
+    Map<String, dynamic> extractedFields,
+    ProtocolTemplate? template,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final e in extractedFields.entries)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 140,
+                  child: Text(
+                    '${_labelForKey(template, e.key)}:',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Expanded(child: Text(e.value?.toString() ?? '—')),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
