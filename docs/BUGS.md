@@ -151,6 +151,33 @@
 
 ---
 
+<a id="vet-054"></a>
+
+## VET-054 — flutter analyze: синтаксическая ошибка в examination_create_page
+
+**ID артефакта:** VET-054  
+**Статус:** исправлен  
+**Дата:** 2026-02-05  
+**Модуль:** `lib/features/examinations/presentation/pages/examination_create_page.dart`
+
+### Описание
+
+При запуске `flutter analyze` в методе `_buildForm` в конце виджета `Column` возникали ошибки разбора:
+- Expected to find ';' (expected_token) на строках 378–379
+- Dead code, missing_identifier, unexpected_token
+- Unnecessary empty statement (empty_statements)
+
+Причина: в конце возвращаемого выражения `return Column( ... );` была лишняя закрывающая скобка и запятая: использовалось `      ),` и `    );` вместо одного `      );`, из‑за чего парсер воспринимал конструкцию неверно.
+
+### Где воспроизвести
+
+- `lib/features/examinations/presentation/pages/examination_create_page.dart`, метод `_buildForm`, строки ~377–380 (закрытие `Column` и `return`).
+- Действия: выполнить `flutter analyze`.
+
+### Исправление
+
+Исправлено закрытие метода `_buildForm`: убрана лишняя пара `),` и `);` — оставлено одно закрытие `      );` для `Column` и завершения `return`, затем `  }` для закрытия метода.
+
 ---
 
 <a id="vet-040"></a>

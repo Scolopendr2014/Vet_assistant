@@ -60,6 +60,16 @@ class AppRouter {
             final id = state.pathParameters['id']!;
             return ExaminationDetailPage(examinationId: id);
           },
+          routes: [
+            GoRoute(
+              path: 'edit',
+              name: 'examination-edit',
+              builder: (context, state) {
+                final id = state.pathParameters['id']!;
+                return ExaminationCreatePage(examinationId: id);
+              },
+            ),
+          ],
         ),
         GoRoute(
           path: '/admin/login',

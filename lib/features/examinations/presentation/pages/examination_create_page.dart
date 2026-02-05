@@ -22,11 +22,13 @@ import '../../../templates/presentation/widgets/template_form_builder.dart';
 import '../../../patients/presentation/providers/patient_providers.dart';
 import '../providers/examination_providers.dart';
 
-/// Создание протокола осмотра: выбор шаблона и форма по шаблону (ТЗ 4.3.1).
+/// Создание или редактирование протокола осмотра (ТЗ 4.3.1, VET-047).
 class ExaminationCreatePage extends ConsumerStatefulWidget {
   final String? patientId;
+  /// При заданном id открывается режим редактирования существующего протокола.
+  final String? examinationId;
 
-  const ExaminationCreatePage({super.key, this.patientId});
+  const ExaminationCreatePage({super.key, this.patientId, this.examinationId});
 
   @override
   ConsumerState<ExaminationCreatePage> createState() =>
@@ -46,6 +48,9 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
   final AudioRecorderService _audioRecorder = AudioRecorderService();
   bool _isRecording = false;
   bool _isTranscribing = false;
+  /// При редактировании: загруженный протокол (для сохранения id, дат, фото).
+  Examination? _existingExam;
+  bool _initializedForEdit = false;
 
   @override
   void dispose() {
@@ -54,49 +59,128 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     super.dispose();
   }
 
+  void _initializeFromExam(Examination exam) {
+    if (_initializedForEdit) return;
+    _existingExam = exam;
+    _selectedTemplateId = exam.templateType;
+    _formValues.clear();
+    _formValues.addAll(exam.extractedFields);
+    _anamnesisController.text = exam.anamnesis ?? '';
+    _photos.clear();
+    _photos.addAll(
+      exam.photos.map((p) => (path: p.filePath, description: p.description)),
+    );
+    _audioPaths.clear();
+    _audioPaths.addAll(exam.audioFilePaths);
+    _initializedForEdit = true;
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
-    final templatesAsync = ref.watch(templateListProvider);
-    final patientAsync = widget.patientId != null
-        ? ref.watch(patientDetailProvider(widget.patientId!))
+    final isEditMode = widget.examinationId != null;
+    final examAsync = isEditMode
+        ? ref.watch(examinationByIdProvider(widget.examinationId!))
         : null;
+    final templatesAsync = ref.watch(templateListProvider);
+    final effectivePatientId = _existingExam?.patientId ?? widget.patientId;
+    final patientAsync = effectivePatientId != null
+        ? ref.watch(patientDetailProvider(effectivePatientId))
+        : null;
+
+    if (isEditMode && examAsync != null) {
+      examAsync.whenData((exam) {
+        if (exam != null && !_initializedForEdit) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _initializeFromExam(exam);
+          });
+        }
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Новый протокол осмотра'),
+        title: Text(isEditMode ? 'Редактирование протокола' : 'Новый протокол осмотра'),
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (widget.patientId != null && patientAsync != null)
-            patientAsync.when(
-              data: (p) => p != null
-                  ? Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Text(
-                            'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
-                            style:
-                                Theme.of(context).textTheme.titleSmall,
-                          ),
+      body: isEditMode && examAsync != null
+          ? examAsync.when(
+              data: (exam) {
+                if (exam == null) {
+                  return const Center(child: Text('Протокол не найден'));
+                }
+                if (!_initializedForEdit) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return _buildForm(context, templatesAsync, patientAsync, effectivePatientId, isEditMode);
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Ошибка: $e')),
+            )
+          : _buildForm(context, templatesAsync, patientAsync, effectivePatientId, false),
+    );
+  }
+
+  Widget _buildForm(
+    BuildContext context,
+    AsyncValue<List<ProtocolTemplate>> templatesAsync,
+    AsyncValue<dynamic>? patientAsync,
+    String? effectivePatientId,
+    bool isEditMode,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (effectivePatientId != null && patientAsync != null)
+          patientAsync.when(
+            data: (p) => p != null
+                ? Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
+                          style: Theme.of(context).textTheme.titleSmall,
                         ),
                       ),
-                    )
-                  : const SizedBox.shrink(),
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              'Тип протокола',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            'Тип протокола',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+        ),
+        if (isEditMode)
+          templatesAsync.when(
+            data: (templates) {
+              String title = _selectedTemplateId ?? '';
+              for (final t in templates) {
+                if (t.id == _selectedTemplateId) {
+                  title = t.title;
+                  break;
+                }
+              }
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Chip(
+                  label: Text(title),
+                  deleteIcon: const SizedBox.shrink(),
+                  onDeleted: null,
+                ),
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          )
+        else
           templatesAsync.when(
             data: (templates) {
               if (templates.isEmpty) {
@@ -291,8 +375,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
               ),
             ),
         ],
-      ),
-    );
+      );
   }
 
   Future<void> _startRecording() async {
@@ -434,7 +517,9 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
   }
 
   Future<void> _saveExamination() async {
-    if (widget.patientId == null || widget.patientId!.isEmpty) {
+    final isEditMode = widget.examinationId != null && _existingExam != null;
+    final effectivePatientId = _existingExam?.patientId ?? widget.patientId;
+    if (effectivePatientId == null || effectivePatientId.isEmpty) {
       setState(() => _validationError = 'Создайте протокол из карточки пациента');
       return;
     }
@@ -464,51 +549,64 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     setState(() => _validationError = null);
     final repo = getIt<ExaminationRepository>();
     final now = DateTime.now();
-    final examinationId = const Uuid().v4();
+    final examinationId = isEditMode ? _existingExam!.id : const Uuid().v4();
+    final existingPhotos = isEditMode ? _existingExam!.photos : <ExaminationPhoto>[];
     final photos = [
       for (var i = 0; i < _photos.length; i++)
-        ExaminationPhoto(
-          id: const Uuid().v4(),
-          examinationId: examinationId,
-          filePath: _photos[i].path,
-          description: _photos[i].description?.trim().isEmpty ?? true
-              ? null
-              : _photos[i].description?.trim(),
-          takenAt: now,
-          orderIndex: i,
-          createdAt: now,
-        ),
+        () {
+          ExaminationPhoto? existing;
+          for (final p in existingPhotos) {
+            if (p.filePath == _photos[i].path) {
+              existing = p;
+              break;
+            }
+          }
+          return ExaminationPhoto(
+            id: existing?.id ?? const Uuid().v4(),
+            examinationId: examinationId,
+            filePath: _photos[i].path,
+            description: _photos[i].description?.trim().isEmpty ?? true
+                ? null
+                : _photos[i].description?.trim(),
+            takenAt: existing?.takenAt ?? now,
+            orderIndex: i,
+            createdAt: existing?.createdAt ?? now,
+          );
+        }(),
     ];
     final examination = Examination(
       id: examinationId,
-      patientId: widget.patientId!,
+      patientId: effectivePatientId,
       templateType: template.id,
       templateVersion: template.version,
-      examinationDate: now,
-      veterinarianName: null,
+      examinationDate: isEditMode ? _existingExam!.examinationDate : now,
+      veterinarianName: isEditMode ? _existingExam!.veterinarianName : null,
       audioFilePaths: List.from(_audioPaths),
       anamnesis: _anamnesisController.text.trim().isEmpty
           ? null
           : _anamnesisController.text.trim(),
-      sttText: null,
-      sttProvider: null,
-      sttModelVersion: null,
+      sttText: isEditMode ? _existingExam!.sttText : null,
+      sttProvider: isEditMode ? _existingExam!.sttProvider : null,
+      sttModelVersion: isEditMode ? _existingExam!.sttModelVersion : null,
       extractedFields: Map<String, dynamic>.from(_formValues),
       validationStatus: 'valid',
       warnings: const [],
-      pdfPath: null,
-      createdAt: now,
+      pdfPath: isEditMode ? _existingExam!.pdfPath : null,
+      createdAt: isEditMode ? _existingExam!.createdAt : now,
       updatedAt: now,
       photos: photos,
     );
     await repo.save(examination);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Протокол сохранён')),
+      SnackBar(content: Text(isEditMode ? 'Протокол обновлён' : 'Протокол сохранён')),
     );
-    ref.invalidate(patientDetailProvider(widget.patientId!));
-    ref.invalidate(examinationsByPatientProvider(widget.patientId!));
-    context.go('/patients/${widget.patientId}');
+    ref.invalidate(patientDetailProvider(effectivePatientId));
+    ref.invalidate(examinationsByPatientProvider(effectivePatientId));
+    if (isEditMode) {
+      ref.invalidate(examinationByIdProvider(examinationId));
+    }
+    context.go('/patients/$effectivePatientId');
   }
 }
 
