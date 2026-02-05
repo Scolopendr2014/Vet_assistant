@@ -17,6 +17,7 @@ import '../../../templates/domain/entities/protocol_template.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
 import '../../../templates/presentation/widgets/template_form_builder.dart';
 import '../../../patients/presentation/providers/patient_providers.dart';
+import '../providers/examination_providers.dart';
 
 /// Создание протокола осмотра: выбор шаблона и форма по шаблону (ТЗ 4.3.1).
 class ExaminationCreatePage extends ConsumerStatefulWidget {
@@ -334,6 +335,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
       const SnackBar(content: Text('Протокол сохранён')),
     );
     ref.invalidate(patientDetailProvider(widget.patientId!));
+    ref.invalidate(examinationsByPatientProvider(widget.patientId!));
     context.go('/patients/${widget.patientId}');
   }
 }
