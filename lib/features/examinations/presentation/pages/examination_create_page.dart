@@ -121,6 +121,14 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(isEditMode ? 'Редактирование протокола' : 'Новый протокол осмотра'),
+        actions: [
+          if (_selectedTemplateId != null)
+            IconButton(
+              icon: const Icon(Icons.save),
+              onPressed: _saveExamination,
+              tooltip: 'Сохранить протокол',
+            ),
+        ],
       ),
       body: isEditMode && examAsync != null
           ? examAsync.when(
@@ -175,15 +183,6 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text(
-                    'Тип протокола',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ),
                 if (isEditMode)
           templatesAsync.when(
             data: (templates) {
@@ -431,16 +430,6 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                 });
               },
               scrollable: false,
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: FilledButton(
-                onPressed: _saveExamination,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text('Сохранить протокол'),
-                ),
-              ),
             ),
           ] else
             const Padding(
