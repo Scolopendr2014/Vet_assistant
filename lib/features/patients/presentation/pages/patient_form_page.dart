@@ -98,10 +98,11 @@ class _PatientFormPageState extends ConsumerState<PatientFormPage> {
       appBar: AppBar(
         title: Text(isEdit ? 'Редактирование пациента' : 'Новый пациент'),
       ),
-      body: FutureBuilder<void>(
-        future: isEdit ? _loadPatient() : null,
-        builder: (context, snapshot) {
-          return Form(
+      body: SafeArea(
+        child: FutureBuilder<void>(
+          future: isEdit ? _loadPatient() : null,
+          builder: (context, snapshot) {
+            return Form(
             key: _formKey,
             child: ListView(
               padding: const EdgeInsets.all(16),
@@ -185,6 +186,7 @@ class _PatientFormPageState extends ConsumerState<PatientFormPage> {
             ),
           );
         },
+        ),
       ),
     );
   }
