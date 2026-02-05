@@ -28,90 +28,93 @@ class PatientDetailPage extends ConsumerWidget {
           ),
         ],
       ),
-      body: asyncPatient.when(
+      body: SafeArea(
+        child: asyncPatient.when(
         data: (patient) {
           if (patient == null) {
             return const Center(child: Text('Пациент не найден'));
           }
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Section(
-                  title: 'Животное',
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _Row('Вид', patient.species),
-                    _Row('Порода', patient.breed),
-                    _Row('Кличка', patient.name),
-                    _Row('Пол', patient.gender),
-                    _Row('Окрас', patient.color),
-                    _Row('Чип', patient.chipNumber),
-                    _Row('Татуировка', patient.tattoo),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _Section(
-                  title: 'Владелец',
-                  children: [
-                    _Row('ФИО', patient.ownerName),
-                    _Row('Телефон', patient.ownerPhone),
-                    _Row('Email', patient.ownerEmail),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: () => context.push(
-                    '/examinations/create?patientId=$patientId',
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Новый протокол осмотра'),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'История осмотров',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    _Section(
+                      title: 'Животное',
+                      children: [
+                        _Row('Вид', patient.species),
+                        _Row('Порода', patient.breed),
+                        _Row('Кличка', patient.name),
+                        _Row('Пол', patient.gender),
+                        _Row('Окрас', patient.color),
+                        _Row('Чип', patient.chipNumber),
+                        _Row('Татуировка', patient.tattoo),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _Section(
+                      title: 'Владелец',
+                      children: [
+                        _Row('ФИО', patient.ownerName),
+                        _Row('Телефон', patient.ownerPhone),
+                        _Row('Email', patient.ownerEmail),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: () => context.push(
+                        '/examinations/create?patientId=$patientId',
                       ),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Новый протокол осмотра'),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'История осмотров',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                examsAsync.when(
+              ),
+              Expanded(
+                child: examsAsync.when(
                   data: (list) {
                     if (list.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text('Нет протоколов'),
-                      );
+                      return const Center(child: Text('Нет протоколов'));
                     }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: list
-                          .map((e) => ListTile(
-                                leading: Icon(iconForTemplateId(e.templateType)),
-                                title: Text(
-                                  DateFormat('dd.MM.yyyy').format(e.examinationDate),
-                                ),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () => context.push('/examinations/${e.id}'),
-                              ))
-                          .toList(),
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16)
+                          .copyWith(bottom: 16),
+                      itemCount: list.length,
+                      itemBuilder: (context, index) {
+                        final e = list[index];
+                        return ListTile(
+                          leading: Icon(iconForTemplateId(e.templateType)),
+                          title: Text(
+                            DateFormat('dd.MM.yyyy').format(e.examinationDate),
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => context.push('/examinations/${e.id}'),
+                        );
+                      },
                     );
                   },
-                  loading: () => const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: CircularProgressIndicator(),
-                  ),
-                  error: (e, _) => Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text('Ошибка: $e'),
-                  ),
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(child: Text('Ошибка: $e')),
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Ошибка: $e')),
+        ),
       ),
     );
   }
