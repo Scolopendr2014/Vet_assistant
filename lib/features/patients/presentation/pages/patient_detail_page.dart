@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../examinations/presentation/providers/examination_providers.dart';
+import '../../../examinations/utils/template_icons.dart';
 import '../providers/patient_providers.dart';
 
 /// Детали пациента и история осмотров (ТЗ 3.1, 4.1).
@@ -86,8 +87,8 @@ class PatientDetailPage extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: list
                           .map((e) => ListTile(
-                                title: Text(e.templateType),
-                                subtitle: Text(
+                                leading: Icon(iconForTemplateId(e.templateType)),
+                                title: Text(
                                   DateFormat('dd.MM.yyyy').format(e.examinationDate),
                                 ),
                                 trailing: const Icon(Icons.chevron_right),

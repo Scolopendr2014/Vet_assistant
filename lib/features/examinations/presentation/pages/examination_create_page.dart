@@ -21,6 +21,7 @@ import '../../../speech/domain/services/stt_router.dart';
 import '../../../speech/services/stt_extraction_service.dart';
 import '../../../templates/presentation/widgets/template_form_builder.dart';
 import '../../../patients/presentation/providers/patient_providers.dart';
+import '../../utils/template_icons.dart';
 import '../providers/examination_providers.dart';
 
 /// Создание или редактирование протокола осмотра (ТЗ 4.3.1, VET-047).
@@ -63,20 +64,6 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     _audioRecorder.dispose();
     _audioPlayback.dispose();
     super.dispose();
-  }
-
-  /// VET-048: иконка для кнопки выбора типа протокола по id шаблона.
-  static IconData _iconForTemplateId(String templateId) {
-    switch (templateId) {
-      case 'cardio':
-        return Icons.monitor_heart;
-      case 'ultrasound':
-        return Icons.waves;
-      case 'dental':
-        return Icons.sentiment_satisfied_alt;
-      default:
-        return Icons.description;
-    }
   }
 
   void _initializeFromExam(Examination exam) {
@@ -199,7 +186,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                 child: Tooltip(
                   message: title,
                   child: Chip(
-                    label: Icon(_iconForTemplateId(templateId), size: 28),
+                    label: Icon(iconForTemplateId(templateId), size: 28),
                     deleteIcon: const SizedBox.shrink(),
                     onDeleted: null,
                   ),
@@ -230,7 +217,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                           message: t.title,
                           child: FilterChip(
                             label: Icon(
-                              _iconForTemplateId(t.id),
+                              iconForTemplateId(t.id),
                               size: 28,
                             ),
                             showCheckmark: false,

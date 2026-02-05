@@ -11,6 +11,7 @@ import '../../../patients/domain/repositories/patient_repository.dart';
 import '../../../pdf/services/protocol_pdf_service.dart';
 import '../../domain/repositories/examination_repository.dart';
 import '../../services/audio_playback_service.dart';
+import '../../utils/template_icons.dart';
 import '../providers/examination_providers.dart';
 
 /// Детали протокола осмотра (ТЗ 4.3).
@@ -49,18 +50,21 @@ class ExaminationDetailPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  exam.templateType,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  DateFormat('dd.MM.yyyy HH:mm').format(exam.examinationDate),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                Row(
+                  children: [
+                    Icon(
+                      iconForTemplateId(exam.templateType),
+                      size: 32,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      DateFormat('dd.MM.yyyy HH:mm').format(exam.examinationDate),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
                 ),
                 if (exam.anamnesis != null && exam.anamnesis!.isNotEmpty) ...[
                   const SizedBox(height: 16),
