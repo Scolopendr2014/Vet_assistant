@@ -51,7 +51,7 @@
 ## VET-037 — В админке по кнопке «Выход» не всегда попадаешь в список пациентов
 
 **ID артефакта:** VET-037  
-**Статус:** исправлен  
+**Статус:** закрыто  
 **Дата:** 2026-02-04  
 **Модуль:** `lib/features/admin/` — панель администратора
 
@@ -113,6 +113,127 @@
 - `lib/features/examinations/presentation/pages/examination_create_page.dart`
 - `lib/features/patients/presentation/pages/patient_detail_page.dart`
 - `lib/features/examinations/presentation/providers/examination_providers.dart` (`examinationsByPatientProvider`)
+
+---
+
+<a id="vet-039"></a>
+
+## VET-039 — Экспорт JSON в админке: непонятно, как сохранить или отправить JSON
+
+**ID артефакта:** VET-039  
+**Статус:** закрыто  
+**Дата:** 2026-02-05  
+**Модуль:** `lib/features/admin/`, экспорт (JSON) — админ-панель
+
+### Описание
+
+При нажатии на «Экспорт JSON» в админке появляется сообщение: «JSON готов (3042 символов). Сохраните через копирование или экспорт в файл.» Пользователю неочевидно, что нужно сделать дальше, чтобы сохранить или отправить JSON: нет явных кнопок «Копировать» / «Экспорт в файл» или пошаговой подсказки. В результате непонятно, как выполнить копирование или экспорт в файл.
+
+### Где воспроизвести
+
+- Админ-панель → кнопка/действие «Экспорт JSON» → диалог/снэкбар с текстом про сохранение через копирование или экспорт в файл.
+- Действия: войти в админку → нажать «Экспорт JSON» → прочитать сообщение и попытаться сохранить/отправить JSON.
+
+### Варианты решения
+
+1. Добавить в диалог/экран с результатом экспорта явные кнопки: «Копировать в буфер» и «Сохранить в файл» (через file_picker / share_plus или аналог), чтобы действие было однозначным.
+2. Если кнопки уже есть — улучшить текст сообщения и визуальное выделение кнопок (например: «JSON готов. Нажмите «Копировать» или «Сохранить в файл» ниже.»).
+3. Для «Сохранить в файл»: вызвать диалог выбора пути/имени файла и записать JSON в выбранный файл; для копирования — `Clipboard.setData(ClipboardData(text: jsonString))`.
+
+### Связанные файлы
+
+- Код админки с экспортом JSON (админ-дашборд, экспорт-сервис, диалоги).
+- При необходимости: `lib/features/export/` — сервисы экспорта.
+
+### Исправление
+
+Вместо SnackBar при выборе «Экспорт JSON» показывается диалог «Экспорт JSON» с текстом «JSON готов (N символов). Выберите действие:» и тремя кнопками: «Закрыть», «Копировать» (копирует JSON в буфер обмена и показывает SnackBar «Скопировано в буфер обмена»), «Сохранить в файл» (записывает JSON во временный файл и открывает системный шаринг — пользователь может сохранить файл или отправить). Файл: `lib/features/admin/presentation/pages/admin_dashboard_page.dart`.
+
+---
+
+---
+
+<a id="vet-040"></a>
+## VET-040 — ReferenceRepositoryImpl / DI, пути, Drift orderBy
+
+**Статус:** исправлен  
+**Модуль:** references, di_container
+
+Ошибки: argument_type_not_assignable (DI); implements_non_class, override_on_non_overriding_member, invocation_of_non_function_expression, static_access_to_instance_member, dead_null_aware в reference_repository_impl (неверный путь к ReferenceRepository, неверный вызов OrderingTerm).
+
+**Исправление:** Путь к app_database в domain — `../../../core/database/app_database.dart`. В impl: корректный импорт интерфейса, сортировка через `OrderingTerm.asc(r.orderIndex)`.
+
+---
+
+<a id="vet-041"></a>
+## VET-041 — Отсутствует native_speech_service.dart, использование NativeSpeechService
+
+**Статус:** исправлен  
+**Модуль:** examination_create_page
+
+Импорт `native_speech_service.dart` и класс NativeSpeechService отсутствуют; страница создания протокола ссылается на них (диктовка в реальном времени).
+
+**Исправление:** Удалены импорт, поле _nativeSpeech, флаги _isDictating/_dictationBase и логика диктовки; оставлены запись аудио и кнопка «Распознать» (STT по файлу).
+
+---
+
+<a id="vet-042"></a>
+## VET-042 — Неверный URI app_config в stt_router.dart
+
+**Статус:** исправлен  
+**Модуль:** speech/domain/services/stt_router.dart
+
+Target of URI doesn't exist: `../../../core/config/app_config.dart` (относительный путь от domain/services неверен).
+
+**Исправление:** Заменён на `../../../../core/config/app_config.dart` (четыре уровня вверх до lib).
+
+---
+
+<a id="vet-043"></a>
+## VET-043 — const в protocol_pdf_service, лишний import
+
+**Статус:** исправлен  
+**Модуль:** pdf/services/protocol_pdf_service.dart
+
+In constant expressions operands must be bool, num, String or null (строка 79); unnecessary import dart:typed_data.
+
+**Исправление:** Убран const у TextStyle с fontWeight (fontWeight не const); удалён import dart:typed_data (используется ByteData из flutter/services).
+
+---
+
+<a id="vet-044"></a>
+## VET-044 — Дублирование modelVersion в on_device_recognizer.dart
+
+**Статус:** исправлен  
+**Модуль:** speech/providers/on_device_recognizer.dart
+
+Поле modelVersion и геттер modelVersion с тем же именем; duplicate_definition.
+
+**Исправление:** Поле переименовано в _modelVersion; геттер возвращает _modelVersion; добавлен @override.
+
+---
+
+<a id="vet-045"></a>
+## VET-045 — Deprecated value в формах (DropdownButtonFormField и др.)
+
+**Статус:** исправлен  
+**Модуль:** references_list_page, template_form_builder
+
+'value' is deprecated, use initialValue (Flutter 3.33+).
+
+**Исправление:** Замена value на initialValue в соответствующих виджетах.
+
+---
+
+<a id="vet-046"></a>
+## VET-046 — Unused import в main.dart, widget_test и MyApp
+
+**Статус:** исправлен  
+**Модуль:** main.dart, test/widget_test.dart
+
+В main.dart не используется import app_config; в widget_test используется MyApp, в main объявлен VetAssistantApp.
+
+**Исправление:** Удалён неиспользуемый import из main.dart; в widget_test заменён MyApp на VetAssistantApp и приведён тест в соответствие с текущим экраном (или упрощён smoke test).
 
 ---
 

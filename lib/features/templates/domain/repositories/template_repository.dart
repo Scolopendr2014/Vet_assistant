@@ -13,4 +13,7 @@ abstract class TemplateRepository {
 
   /// Предзагрузить шаблоны из assets в БД.
   Future<void> loadFromAssets();
+
+  /// Сохранить изменённый шаблон в БД (VET-032). Перезаписывает кэш для данного типа.
+  Future<void> saveTemplate(ProtocolTemplate template);
 }

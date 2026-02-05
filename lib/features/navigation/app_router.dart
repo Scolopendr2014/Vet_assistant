@@ -6,6 +6,9 @@ import '../examinations/presentation/pages/examination_create_page.dart';
 import '../examinations/presentation/pages/examination_detail_page.dart';
 import '../admin/presentation/pages/admin_login_page.dart';
 import '../admin/presentation/pages/admin_dashboard_page.dart';
+import '../admin/presentation/pages/template_edit_page.dart';
+import '../admin/presentation/pages/references_list_page.dart';
+import '../admin/presentation/pages/validation_settings_page.dart';
 
 class AppRouter {
   late final GoRouter config;
@@ -67,6 +70,26 @@ class AppRouter {
           path: '/admin/dashboard',
           name: 'admin-dashboard',
           builder: (context, state) => const AdminDashboardPage(),
+          routes: [
+            GoRoute(
+              path: 'templates/:id',
+              name: 'admin-template-edit',
+              builder: (context, state) {
+                final id = state.pathParameters['id']!;
+                return TemplateEditPage(templateId: id);
+              },
+            ),
+            GoRoute(
+              path: 'references',
+              name: 'admin-references',
+              builder: (context, state) => const ReferencesListPage(),
+            ),
+            GoRoute(
+              path: 'validation',
+              name: 'admin-validation',
+              builder: (context, state) => const ValidationSettingsPage(),
+            ),
+          ],
         ),
       ],
     );

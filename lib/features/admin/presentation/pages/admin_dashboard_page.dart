@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../export/services/export_service.dart';
@@ -22,6 +24,16 @@ class AdminDashboardPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Панель администратора'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.list_alt),
+            onPressed: () => context.push('/admin/dashboard/references'),
+            tooltip: 'Справочники',
+          ),
+          IconButton(
+            icon: const Icon(Icons.rule),
+            onPressed: () => context.push('/admin/dashboard/validation'),
+            tooltip: 'Настройки валидации',
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.download),
             tooltip: 'Экспорт',
@@ -38,7 +50,7 @@ class AdminDashboardPage extends ConsumerWidget {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => context.go('/admin/login'),
+            onPressed: () => context.go('/patients'),
             tooltip: 'Выйти',
           ),
         ],
@@ -53,20 +65,13 @@ class AdminDashboardPage extends ConsumerWidget {
             itemCount: templates.length,
             itemBuilder: (context, i) {
               final t = templates[i];
-              return Card(
+                return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   title: Text(t.title),
                   subtitle: Text('${t.id} · v${t.version}'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    // Редактирование шаблона (будет реализовано)
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Редактирование шаблонов — в разработке'),
-                      ),
-                    );
-                  },
+                  onTap: () => context.push('/admin/dashboard/templates/${t.id}'),
                 ),
               );
             },
@@ -81,12 +86,8 @@ class AdminDashboardPage extends ConsumerWidget {
   static Future<void> _exportChoice(BuildContext context, String value) async {
     if (value == 'json') {
       final json = await ExportService.exportToJson();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('JSON готов (${json.length} символов). Сохраните через копирование или экспорт в файл.')),
-        );
-        // Optionally copy to clipboard or save to file
-      }
+      if (!context.mounted) return;
+      await _showJsonExportDialog(context, json);
       return;
     }
     if (value == 'zip') {
@@ -106,6 +107,58 @@ class AdminDashboardPage extends ConsumerWidget {
         }
       }
     }
+  }
+
+  static Future<void> _showJsonExportDialog(BuildContext context, String json) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Экспорт JSON'),
+        content: Text(
+          'JSON готов (${json.length} символов). Выберите действие:',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Закрыть'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.copy, size: 20),
+            label: const Text('Копировать'),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: json));
+              if (ctx.mounted) Navigator.pop(ctx);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Скопировано в буфер обмена')),
+              );
+            },
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.save_alt, size: 20),
+            label: const Text('Сохранить в файл'),
+            onPressed: () async {
+              try {
+                final dir = await getTemporaryDirectory();
+                final name = 'vet_export_${DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first}.json';
+                final file = File('${dir.path}/$name');
+                await file.writeAsString(json);
+                if (ctx.mounted) Navigator.pop(ctx);
+                await Share.shareXFiles([XFile(file.path)], text: 'Экспорт БД');
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Файл готов к сохранению или отправке')),
+                );
+              } catch (e) {
+                if (ctx.mounted) Navigator.pop(ctx);
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Ошибка: $e')),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   static Future<void> _importJson(BuildContext context) async {

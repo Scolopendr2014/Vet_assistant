@@ -1,5 +1,5 @@
 import 'dart:io';
-import '../../../core/config/app_config.dart';
+import '../../../../core/config/app_config.dart';
 import '../entities/stt_result.dart';
 import '../interfaces/speech_recognizer.dart';
 import '../../providers/cloud_recognizer.dart';

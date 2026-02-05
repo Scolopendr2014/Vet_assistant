@@ -71,6 +71,34 @@ class TemplateRepositoryImpl implements TemplateRepository {
     }
   }
 
+  @override
+  Future<void> saveTemplate(ProtocolTemplate template) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final content = jsonEncode(template.toJson());
+    final existing = await (_db.select(_db.templates)
+          ..where((x) => x.type.equals(template.id)))
+        .getSingleOrNull();
+    if (existing != null) {
+      await (_db.update(_db.templates)
+            ..where((x) => x.type.equals(template.id)))
+          .write(TemplatesCompanion(
+        version: Value(template.version),
+        content: Value(content),
+        updatedAt: Value(now),
+      ));
+    } else {
+      await _db.into(_db.templates).insert(TemplatesCompanion.insert(
+            id: '${template.id}_${template.version}',
+            type: template.id,
+            version: template.version,
+            locale: template.locale,
+            content: content,
+            createdAt: now,
+            updatedAt: now,
+          ));
+    }
+  }
+
   Future<ProtocolTemplate?> _loadFromAsset(String id) async {
     try {
       final json = await rootBundle.loadString('assets/templates/$id.json');

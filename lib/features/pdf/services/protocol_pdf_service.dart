@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -76,7 +75,7 @@ class ProtocolPdfService {
     final style10 = font != null ? pw.TextStyle(font: font, fontSize: 10) : const pw.TextStyle(fontSize: 10);
     final style18Bold = fontBold != null
         ? pw.TextStyle(font: fontBold, fontSize: 18, fontWeight: pw.FontWeight.bold)
-        : const pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold);
+        : pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold);
 
     final photoBytesList = <List<int>?>[];
     for (final p in examination.photos) {

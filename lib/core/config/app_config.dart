@@ -9,6 +9,13 @@ class AppConfig {
   // Настройки STT
   static const Duration sttTimeout = Duration(seconds: 30);
   static const double sttConfidenceThreshold = 0.7;
+  /// API-ключ облачного STT (Google Cloud Speech-to-Text). Задаётся через --dart-define=STT_GOOGLE_API_KEY=... или оставьте пустым для отключения.
+  static const String sttGoogleApiKey = String.fromEnvironment(
+    'STT_GOOGLE_API_KEY',
+    defaultValue: '',
+  );
+  /// Язык распознавания (BCP-47), по умолчанию русский.
+  static const String sttLanguageCode = 'ru-RU';
   
   // Настройки аудио
   static const int audioSampleRate = 16000; // Hz

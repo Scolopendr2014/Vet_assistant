@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'core/config/app_config.dart';
 import 'core/di/di_container.dart';
 import 'features/navigation/app_router.dart';
 

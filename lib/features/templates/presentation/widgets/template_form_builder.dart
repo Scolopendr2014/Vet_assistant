@@ -74,7 +74,7 @@ class TemplateFormBuilder extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: DropdownButtonFormField<String?>(
-            value: value is String && options.contains(value) ? value : null,
+            initialValue: value is String && options.contains(value) ? value : null,
             decoration: InputDecoration(
               labelText: label + (field.required ? ' *' : ''),
               errorText: error,

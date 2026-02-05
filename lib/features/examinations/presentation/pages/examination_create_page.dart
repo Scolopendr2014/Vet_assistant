@@ -13,8 +13,11 @@ import '../../../../core/di/di_container.dart';
 import '../../domain/entities/examination.dart';
 import '../../domain/entities/examination_photo.dart';
 import '../../domain/repositories/examination_repository.dart';
+import '../../services/audio_recorder_service.dart';
 import '../../../templates/domain/entities/protocol_template.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
+import '../../../speech/domain/services/stt_router.dart';
+import '../../../speech/services/stt_extraction_service.dart';
 import '../../../templates/presentation/widgets/template_form_builder.dart';
 import '../../../patients/presentation/providers/patient_providers.dart';
 import '../providers/examination_providers.dart';
@@ -37,11 +40,17 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
   String? _validationError;
   /// Пути к фото (уже скопированы в хранилище приложения) и описание
   final List<({String path, String? description})> _photos = [];
+  /// Пути к записанным аудиофайлам (VET-018)
+  final List<String> _audioPaths = [];
   final ImagePicker _imagePicker = ImagePicker();
+  final AudioRecorderService _audioRecorder = AudioRecorderService();
+  bool _isRecording = false;
+  bool _isTranscribing = false;
 
   @override
   void dispose() {
     _anamnesisController.dispose();
+    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -146,6 +155,64 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
               child: Row(
                 children: [
                   Text(
+                    'Аудио (запись анамнеза)',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: _isRecording ? null : _startRecording,
+                    icon: Icon(_isRecording ? Icons.mic : Icons.mic_none),
+                    label: const Text('Записать'),
+                  ),
+                  if (_isRecording) ...[
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _stopRecording,
+                      child: const Text('Стоп'),
+                    ),
+                  ],
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: (_isTranscribing || _audioPaths.isEmpty)
+                        ? null
+                        : _runSttAndFill,
+                    icon: _isTranscribing
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.transcribe),
+                    label: const Text('Распознать'),
+                  ),
+                ],
+              ),
+            ),
+            if (_audioPaths.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (var i = 0; i < _audioPaths.length; i++)
+                      Chip(
+                        avatar: const Icon(Icons.audiotrack, size: 20),
+                        label: Text('Запись ${i + 1}'),
+                        onDeleted: () {
+                          setState(() => _audioPaths.removeAt(i));
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
                     'Фотографии',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
@@ -223,6 +290,111 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                 child: Text('Выберите тип протокола выше'),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startRecording() async {
+    final granted = await _audioRecorder.requestPermission();
+    if (!mounted) return;
+    if (!granted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Нет доступа к микрофону')),
+      );
+      return;
+    }
+    setState(() => _isRecording = true);
+    try {
+      await _audioRecorder.startRecording();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isRecording = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка записи: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    final path = await _audioRecorder.stopRecording();
+    if (!mounted) return;
+    setState(() => _isRecording = false);
+    if (path != null && path.isNotEmpty) {
+      setState(() => _audioPaths.add(path));
+    }
+  }
+
+  /// VET-019: распознать первый аудиофайл через STT и авто-заполнить поля по шаблону.
+  Future<void> _runSttAndFill() async {
+    if (_audioPaths.isEmpty || _selectedTemplateId == null) return;
+    final template = await ref.read(templateByIdProvider(_selectedTemplateId!).future);
+    if (template == null || !mounted) return;
+    setState(() => _isTranscribing = true);
+    try {
+      final router = getIt<SttRouter>();
+      final result = await router.transcribe(_audioPaths.first);
+      if (!mounted) return;
+      final extracted = SttExtractionService.extractFields(
+        template,
+        result.text,
+        existingValues: _formValues,
+      );
+      setState(() {
+        _formValues.addAll(extracted);
+        if (result.text.isNotEmpty) {
+          final prev = _anamnesisController.text;
+          _anamnesisController.text = prev.isEmpty
+              ? result.text
+              : '$prev\n\n${result.text}';
+        }
+        _validationError = null;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Распознано: ${result.text.length} символов')),
+        );
+        _showClarificationDialogIfNeeded(template);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isTranscribing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка распознавания: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isTranscribing = false);
+    }
+  }
+
+  /// VET-020: диалог уточнений при незаполненных обязательных полях после STT.
+  void _showClarificationDialogIfNeeded(ProtocolTemplate template) {
+    final missing = <String>[];
+    for (final section in template.sections) {
+      for (final field in section.fields) {
+        if (field.required) {
+          final v = _formValues[field.key];
+          if (v == null || (v is String && v.trim().isEmpty)) {
+            missing.add(field.label);
+          }
+        }
+      }
+    }
+    if (missing.isEmpty || !mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Уточнение данных'),
+        content: Text(
+          'После распознавания не заполнены обязательные поля: ${missing.join(", ")}. Заполните их вручную в форме ниже.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Понятно'),
+          ),
         ],
       ),
     );
@@ -314,7 +486,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
       templateVersion: template.version,
       examinationDate: now,
       veterinarianName: null,
-      audioFilePaths: const [],
+      audioFilePaths: List.from(_audioPaths),
       anamnesis: _anamnesisController.text.trim().isEmpty
           ? null
           : _anamnesisController.text.trim(),

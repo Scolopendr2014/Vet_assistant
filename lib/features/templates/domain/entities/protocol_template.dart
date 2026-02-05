@@ -80,6 +80,27 @@ class TemplateSection {
   }
 }
 
+/// Правила извлечения значения из текста STT (VET-019).
+class FieldExtraction {
+  const FieldExtraction({
+    this.patterns = const [],
+    this.keywords = const [],
+  });
+
+  final List<String> patterns;
+  final List<String> keywords;
+
+  factory FieldExtraction.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const FieldExtraction();
+    final p = json['patterns'] as List<dynamic>?;
+    final k = json['keywords'] as List<dynamic>?;
+    return FieldExtraction(
+      patterns: p?.cast<String>() ?? const [],
+      keywords: k?.cast<String>() ?? const [],
+    );
+  }
+}
+
 class TemplateField {
   const TemplateField({
     required this.key,
@@ -89,6 +110,7 @@ class TemplateField {
     this.required = false,
     this.options,
     this.validation,
+    this.extraction,
   });
 
   final String key;
@@ -98,9 +120,11 @@ class TemplateField {
   final bool required;
   final List<String>? options;
   final Map<String, dynamic>? validation;
+  final FieldExtraction? extraction;
 
   factory TemplateField.fromJson(Map<String, dynamic> json) {
     final opts = json['options'] as List<dynamic>?;
+    final ext = json['extraction'];
     return TemplateField(
       key: json['key'] as String,
       label: json['label'] as String,
@@ -109,6 +133,9 @@ class TemplateField {
       required: json['required'] as bool? ?? false,
       options: opts?.cast<String>(),
       validation: json['validation'] as Map<String, dynamic>?,
+      extraction: ext is Map<String, dynamic>
+          ? FieldExtraction.fromJson(ext)
+          : null,
     );
   }
 

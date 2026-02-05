@@ -7,6 +7,12 @@ import '../../features/templates/domain/repositories/template_repository.dart';
 import '../../features/templates/data/repositories/template_repository_impl.dart';
 import '../../features/examinations/domain/repositories/examination_repository.dart';
 import '../../features/examinations/data/repositories/examination_repository_impl.dart';
+import '../../features/speech/domain/services/stt_router.dart';
+import '../../features/speech/providers/cloud_recognizer.dart';
+import '../../features/speech/providers/private_server_recognizer.dart';
+import '../../features/speech/providers/on_device_recognizer.dart';
+import '../../features/references/domain/reference_repository.dart';
+import '../../features/references/data/reference_repository_impl.dart';
 
 final getIt = GetIt.instance;
 
@@ -27,8 +33,24 @@ Future<void> setupDependencies() async {
     ExaminationRepositoryImpl(db),
   );
 
-  // Роутер
+  // Роутер навигации
   getIt.registerSingleton<AppRouter>(
     AppRouter(),
+  );
+
+  // STT: провайдеры и роутер
+  getIt.registerSingleton<CloudRecognizer>(CloudRecognizer());
+  getIt.registerSingleton<PrivateServerRecognizer>(PrivateServerRecognizer());
+  getIt.registerSingleton<OnDeviceRecognizer>(OnDeviceRecognizer());
+  getIt.registerSingleton<SttRouter>(
+    SttRouter(
+      cloudRecognizer: getIt<CloudRecognizer>(),
+      privateServerRecognizer: getIt<PrivateServerRecognizer>(),
+      onDeviceRecognizer: getIt<OnDeviceRecognizer>(),
+    ),
+  );
+
+  getIt.registerSingleton<ReferenceRepository>(
+    ReferenceRepositoryImpl(db),
   );
 }
