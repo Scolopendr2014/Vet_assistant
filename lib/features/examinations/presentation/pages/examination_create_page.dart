@@ -47,6 +47,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
   final ImagePicker _imagePicker = ImagePicker();
   final AudioRecorderService _audioRecorder = AudioRecorderService();
   bool _isRecording = false;
+  bool _isPaused = false;
   bool _isTranscribing = false;
   /// При редактировании: загруженный протокол (для сохранения id, дат, фото).
   Examination? _existingExam;
@@ -277,20 +278,27 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                         ),
                   ),
                   const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
+                  IconButton.filled(
                     onPressed: _isRecording ? null : _startRecording,
                     icon: Icon(_isRecording ? Icons.mic : Icons.mic_none),
-                    label: const Text('Записать'),
+                    tooltip: 'Записать',
                   ),
                   if (_isRecording) ...[
                     const SizedBox(width: 8),
-                    FilledButton(
+                    IconButton.filled(
+                      onPressed: _isPaused ? _resumeRecording : _pauseRecording,
+                      icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
+                      tooltip: _isPaused ? 'Продолжить' : 'Пауза',
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
                       onPressed: _stopRecording,
-                      child: const Text('Стоп'),
+                      icon: const Icon(Icons.stop),
+                      tooltip: 'Стоп',
                     ),
                   ],
                   const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
+                  IconButton.filled(
                     onPressed: (_isTranscribing || _audioPaths.isEmpty)
                         ? null
                         : _runSttAndFill,
@@ -301,7 +309,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.transcribe),
-                    label: const Text('Распознать'),
+                    tooltip: 'Распознать',
                   ),
                 ],
               ),
@@ -423,7 +431,10 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
       );
       return;
     }
-    setState(() => _isRecording = true);
+    setState(() {
+      _isRecording = true;
+      _isPaused = false;
+    });
     try {
       await _audioRecorder.startRecording();
     } catch (e) {
@@ -436,10 +447,25 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     }
   }
 
+  Future<void> _pauseRecording() async {
+    await _audioRecorder.pauseRecording();
+    if (!mounted) return;
+    setState(() => _isPaused = true);
+  }
+
+  Future<void> _resumeRecording() async {
+    await _audioRecorder.resumeRecording();
+    if (!mounted) return;
+    setState(() => _isPaused = false);
+  }
+
   Future<void> _stopRecording() async {
     final path = await _audioRecorder.stopRecording();
     if (!mounted) return;
-    setState(() => _isRecording = false);
+    setState(() {
+      _isRecording = false;
+      _isPaused = false;
+    });
     if (path != null && path.isNotEmpty) {
       setState(() => _audioPaths.add(path));
     }

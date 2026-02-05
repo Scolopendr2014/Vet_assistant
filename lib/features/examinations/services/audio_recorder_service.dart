@@ -41,6 +41,29 @@ class AudioRecorderService {
     return _currentPath!;
   }
 
+  /// Приостановить запись (VET-051).
+  Future<void> pauseRecording() async {
+    try {
+      await _recorder.pause();
+    } catch (_) {}
+  }
+
+  /// Продолжить запись после паузы.
+  Future<void> resumeRecording() async {
+    try {
+      await _recorder.resume();
+    } catch (_) {}
+  }
+
+  /// Запись приостановлена?
+  Future<bool> isPaused() async {
+    try {
+      return await _recorder.isPaused();
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Остановить запись. Возвращает путь к сохранённому файлу или null при отмене.
   Future<String?> stopRecording() async {
     if (_currentPath == null) return null;
