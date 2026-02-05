@@ -59,6 +59,20 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     super.dispose();
   }
 
+  /// VET-048: иконка для кнопки выбора типа протокола по id шаблона.
+  static IconData _iconForTemplateId(String templateId) {
+    switch (templateId) {
+      case 'cardio':
+        return Icons.monitor_heart;
+      case 'ultrasound':
+        return Icons.waves;
+      case 'dental':
+        return Icons.sentiment_satisfied_alt;
+      default:
+        return Icons.description;
+    }
+  }
+
   void _initializeFromExam(Examination exam) {
     if (_initializedForEdit) return;
     _existingExam = exam;
@@ -168,12 +182,16 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                   break;
                 }
               }
+              final templateId = _selectedTemplateId ?? '';
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Chip(
-                  label: Text(title),
-                  deleteIcon: const SizedBox.shrink(),
-                  onDeleted: null,
+                child: Tooltip(
+                  message: title,
+                  child: Chip(
+                    label: Icon(_iconForTemplateId(templateId), size: 28),
+                    deleteIcon: const SizedBox.shrink(),
+                    onDeleted: null,
+                  ),
                 ),
               );
             },
@@ -197,15 +215,23 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                     for (final t in templates)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: FilterChip(
-                          label: Text(t.title),
-                          selected: _selectedTemplateId == t.id,
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedTemplateId = selected ? t.id : null;
-                              if (!selected) _formValues.clear();
-                            });
-                          },
+                        child: Tooltip(
+                          message: t.title,
+                          child: FilterChip(
+                            label: Icon(
+                              _iconForTemplateId(t.id),
+                              size: 28,
+                            ),
+                            showCheckmark: false,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            selected: _selectedTemplateId == t.id,
+                            onSelected: (selected) {
+                              setState(() {
+                                _selectedTemplateId = selected ? t.id : null;
+                                if (!selected) _formValues.clear();
+                              });
+                            },
+                          ),
                         ),
                       ),
                   ],
