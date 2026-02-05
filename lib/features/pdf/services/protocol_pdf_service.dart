@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -9,7 +11,56 @@ import 'package:intl/intl.dart';
 import '../../examinations/domain/entities/examination.dart';
 import '../../examinations/domain/entities/examination_photo.dart';
 
-/// Генерация PDF протокола (ТЗ 4.5).
+/// Шрифты с кириллицей для PDF (VET-001). Кэш в памяти.
+pw.Font? _pdfFontRegular;
+pw.Font? _pdfFontBold;
+
+Future<void> _loadPdfFonts() async {
+  if (_pdfFontRegular != null) return;
+  ByteData? regularData;
+  ByteData? boldData;
+  try {
+    regularData = await rootBundle.load('assets/fonts/Roboto-Regular.ttf');
+    boldData = await rootBundle.load('assets/fonts/Roboto-Bold.ttf');
+  } catch (_) {}
+  if (regularData == null || boldData == null) {
+    final urisList = [
+      [
+        Uri.parse(
+          'https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Regular.ttf',
+        ),
+        Uri.parse(
+          'https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Bold.ttf',
+        ),
+      ],
+      [
+        Uri.parse(
+          'https://cdn.jsdelivr.net/gh/google/fonts@main/apache/roboto/Roboto-Regular.ttf',
+        ),
+        Uri.parse(
+          'https://cdn.jsdelivr.net/gh/google/fonts@main/apache/roboto/Roboto-Bold.ttf',
+        ),
+      ],
+    ];
+    for (final uris in urisList) {
+      try {
+        final responses = await Future.wait([
+          http.get(uris[0]).timeout(const Duration(seconds: 15)),
+          http.get(uris[1]).timeout(const Duration(seconds: 15)),
+        ]);
+        if (responses[0].statusCode == 200 && responses[1].statusCode == 200) {
+          regularData = ByteData.sublistView(Uint8List.fromList(responses[0].bodyBytes));
+          boldData = ByteData.sublistView(Uint8List.fromList(responses[1].bodyBytes));
+          break;
+        }
+      } catch (_) {}
+    }
+  }
+  if (regularData != null) _pdfFontRegular = pw.Font.ttf(regularData);
+  if (boldData != null) _pdfFontBold = pw.Font.ttf(boldData);
+}
+
+/// Генерация PDF протокола (ТЗ 4.5). Использует шрифт с кириллицей (VET-001).
 class ProtocolPdfService {
   /// Создаёт PDF и возвращает путь к файлу.
   static Future<String> generate(
@@ -17,6 +68,16 @@ class ProtocolPdfService {
     String? patientName,
     String? patientOwner,
   }) async {
+    await _loadPdfFonts();
+    final font = _pdfFontRegular;
+    final fontBold = _pdfFontBold ?? font;
+    final style12 = font != null ? pw.TextStyle(font: font, fontSize: 12) : const pw.TextStyle(fontSize: 12);
+    final style11 = font != null ? pw.TextStyle(font: font, fontSize: 11) : const pw.TextStyle(fontSize: 11);
+    final style10 = font != null ? pw.TextStyle(font: font, fontSize: 10) : const pw.TextStyle(fontSize: 10);
+    final style18Bold = fontBold != null
+        ? pw.TextStyle(font: fontBold, fontSize: 18, fontWeight: pw.FontWeight.bold)
+        : const pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold);
+
     final photoBytesList = <List<int>?>[];
     for (final p in examination.photos) {
       final f = File(p.filePath);
@@ -36,26 +97,23 @@ class ProtocolPdfService {
             level: 0,
             child: pw.Text(
               'Протокол осмотра',
-              style: pw.TextStyle(
-                fontSize: 18,
-                fontWeight: pw.FontWeight.bold,
-              ),
+              style: style18Bold,
             ),
           ),
           pw.SizedBox(height: 8),
           pw.Text(
             'Тип протокола: ${examination.templateType}',
-            style: const pw.TextStyle(fontSize: 12),
+            style: style12,
           ),
           pw.Text(
             'Дата: ${DateFormat('dd.MM.yyyy HH:mm').format(examination.examinationDate)}',
-            style: const pw.TextStyle(fontSize: 12),
+            style: style12,
           ),
           if (patientName != null || patientOwner != null) ...[
             pw.SizedBox(height: 8),
             pw.Text(
               'Пациент: ${patientName ?? "—"} · Владелец: ${patientOwner ?? "—"}',
-              style: const pw.TextStyle(fontSize: 12),
+              style: style12,
             ),
           ],
           if (examination.anamnesis != null &&
@@ -63,15 +121,15 @@ class ProtocolPdfService {
             pw.SizedBox(height: 16),
             pw.Header(
               level: 1,
-              child: pw.Text('Анамнез'),
+              child: pw.Text('Анамнез', style: style12),
             ),
-            pw.Text(examination.anamnesis!, style: const pw.TextStyle(fontSize: 11)),
+            pw.Text(examination.anamnesis!, style: style11),
           ],
           if (examination.extractedFields.isNotEmpty) ...[
             pw.SizedBox(height: 16),
             pw.Header(
               level: 1,
-              child: pw.Text('Данные осмотра'),
+              child: pw.Text('Данные осмотра', style: style12),
             ),
             ...examination.extractedFields.entries.map(
               (e) => pw.Padding(
@@ -80,23 +138,23 @@ class ProtocolPdfService {
                   children: [
                     pw.SizedBox(
                       width: 120,
-                      child: pw.Text('${e.key}:'),
+                      child: pw.Text('${e.key}:', style: style12),
                     ),
                     pw.Expanded(
-                      child: pw.Text(e.value?.toString() ?? '—'),
+                      child: pw.Text(e.value?.toString() ?? '—', style: style12),
                     ),
                   ],
                 ),
               ),
             ),
+          ],
           if (examination.photos.isNotEmpty) ...[
             pw.SizedBox(height: 16),
             pw.Header(
               level: 1,
-              child: pw.Text('Фотографии'),
+              child: pw.Text('Фотографии', style: style12),
             ),
-            ..._photoWidgets(examination.photos, photoBytesList),
-          ],
+            ..._photoWidgets(examination.photos, photoBytesList, style10),
           ],
         ],
         footer: (context) => pw.Container(
@@ -104,7 +162,7 @@ class ProtocolPdfService {
           margin: const pw.EdgeInsets.only(top: 16),
           child: pw.Text(
             'Страница ${context.pageNumber} из ${context.pagesCount}',
-            style: const pw.TextStyle(fontSize: 10),
+            style: style10,
           ),
         ),
       ),
@@ -118,6 +176,7 @@ class ProtocolPdfService {
   static List<pw.Widget> _photoWidgets(
     List<ExaminationPhoto> photos,
     List<List<int>?> photoBytesList,
+    pw.TextStyle smallStyle,
   ) {
     final out = <pw.Widget>[];
     for (var i = 0; i < photos.length; i++) {
@@ -139,10 +198,7 @@ class ProtocolPdfService {
               if (p.description != null && p.description!.isNotEmpty)
                 pw.Padding(
                   padding: const pw.EdgeInsets.only(top: 4),
-                  child: pw.Text(
-                    p.description!,
-                    style: const pw.TextStyle(fontSize: 10),
-                  ),
+                  child: pw.Text(p.description!, style: smallStyle),
                 ),
             ],
           ),
