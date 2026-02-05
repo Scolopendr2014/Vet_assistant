@@ -35,6 +35,9 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Собранные APK для распространения
+/dist/
+
 # Symbolication related
 app.*.symbols
 
