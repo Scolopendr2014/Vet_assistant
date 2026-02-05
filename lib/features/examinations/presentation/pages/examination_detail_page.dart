@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -99,6 +101,89 @@ class ExaminationDetailPage extends ConsumerWidget {
                           ],
                         ),
                       )),
+                ],
+                if (exam.photos.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Фотографии',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 140,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: exam.photos.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (context, index) {
+                        final photo = exam.photos[index];
+                        final file = File(photo.filePath);
+                        return SizedBox(
+                          width: 160,
+                          child: Card(
+                            clipBehavior: Clip.antiAlias,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: file.existsSync()
+                                      ? Image.file(
+                                          file,
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                        )
+                                      : Center(
+                                          child: Icon(
+                                            Icons.broken_image,
+                                            color: Theme.of(context)
+                                                .colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                ),
+                                if (photo.description != null &&
+                                    photo.description!.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: Text(
+                                      photo.description!,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                if (exam.audioFilePaths.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Аудиозаписи',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (var i = 0; i < exam.audioFilePaths.length; i++)
+                        Chip(
+                          avatar: const Icon(Icons.audiotrack, size: 20),
+                          label: Text('Запись ${i + 1}'),
+                        ),
+                    ],
+                  ),
                 ],
               ],
             ),
