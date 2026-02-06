@@ -33,5 +33,5 @@ class AppConfig {
   
   // Настройки БД
   static const String dbName = 'vet_assistant.db';
-  static const int dbVersion = 3; // + колонка anamnesis в examinations
+  static const int dbVersion = 4; // VET-071: templates.is_active, единственная активная версия на тип
 }

@@ -1,14 +1,24 @@
 import '../entities/protocol_template.dart';
 
-/// Репозиторий шаблонов протоколов (ТЗ 4.2).
+/// Репозиторий шаблонов протоколов (ТЗ 4.2, VET-071).
 abstract class TemplateRepository {
   /// Список доступных типов шаблонов (id из assets).
   List<String> get templateIds;
 
-  /// Загрузить шаблон по id (из кэша БД или assets).
+  /// Загрузить активный шаблон по типу (VET-071: одна активная версия на тип).
+  /// [id] — тип шаблона (cardio, ultrasound, dental).
   Future<ProtocolTemplate?> getById(String id);
 
-  /// Все загруженные шаблоны.
+  /// Загрузить шаблон по полному id записи (id строки в БД, например "cardio_1.0.0").
+  Future<ProtocolTemplate?> getByTemplateRowId(String templateRowId);
+
+  /// Все версии шаблонов указанного типа (VET-071).
+  Future<List<ProtocolTemplate>> getVersionsByType(String type);
+
+  /// Сделать указанную версию шаблона активной; у остальных версий этого типа снять флаг (VET-071).
+  Future<void> setActiveVersion(String templateRowId);
+
+  /// Все загруженные шаблоны (все версии из БД).
   Future<List<ProtocolTemplate>> getAll();
 
   /// Предзагрузить шаблоны из assets в БД.

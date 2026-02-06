@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/di/di_container.dart';
 import '../../../templates/domain/entities/protocol_template.dart';
 import '../../../templates/domain/repositories/template_repository.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
 
-/// Редактирование шаблона протокола (VET-032). Заголовок и описание.
+/// Редактирование шаблона протокола (VET-032, VET-065). Заголовок, описание, CRUD разделов.
 class TemplateEditPage extends ConsumerStatefulWidget {
   final String templateId;
 
@@ -19,6 +20,7 @@ class TemplateEditPage extends ConsumerStatefulWidget {
 class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  List<TemplateSection> _sections = [];
   bool _saving = false;
   bool _initialized = false;
 
@@ -27,6 +29,81 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  void _initFromTemplate(ProtocolTemplate template) {
+    if (_initialized) return;
+    _initialized = true;
+    _titleController.text = template.title;
+    _descriptionController.text = template.description ?? '';
+    _sections = List.from(template.sections);
+    _sections.sort((a, b) => a.order.compareTo(b.order));
+  }
+
+  void _addSection() {
+    final order = _sections.isEmpty ? 1 : (_sections.map((s) => s.order).reduce((a, b) => a > b ? a : b) + 1);
+    setState(() {
+      _sections.add(TemplateSection(
+        id: const Uuid().v4(),
+        title: 'Новый раздел',
+        order: order,
+        fields: [
+          TemplateField(
+            key: 'field_${const Uuid().v4().substring(0, 8)}',
+            label: 'Поле 1',
+            type: 'text',
+            required: false,
+          ),
+        ],
+      ));
+      _sections.sort((a, b) => a.order.compareTo(b.order));
+    });
+  }
+
+  void _deleteSection(int index) async {
+    final section = _sections[index];
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить раздел?'),
+        content: Text('Раздел «${section.title}» и все его поля будут удалены.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Удалить')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() {
+      _sections.removeAt(index);
+      for (var i = 0; i < _sections.length; i++) {
+        _sections[i] = TemplateSection(
+          id: _sections[i].id,
+          title: _sections[i].title,
+          order: i + 1,
+          fields: _sections[i].fields,
+        );
+      }
+    });
+  }
+
+  Future<void> _editSection(int index) async {
+    final section = _sections[index];
+    final updated = await showDialog<TemplateSection>(
+      context: context,
+      builder: (ctx) => _SectionEditDialog(section: section),
+    );
+    if (updated != null && mounted) {
+      setState(() {
+        _sections[index] = TemplateSection(
+          id: updated.id,
+          title: updated.title,
+          order: updated.order,
+          fields: updated.fields,
+        );
+        _sections.sort((a, b) => a.order.compareTo(b.order));
+      });
+    }
   }
 
   @override
@@ -58,11 +135,7 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
           if (template == null) {
             return const Center(child: Text('Шаблон не найден'));
           }
-          if (!_initialized) {
-            _initialized = true;
-            _titleController.text = template.title;
-            _descriptionController.text = template.description ?? '';
-          }
+          _initFromTemplate(template);
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -90,10 +163,60 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
                   maxLines: 3,
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  'Секций: ${template.sections.length}',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Разделы протокола (${_sections.length})',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.add, size: 20),
+                      label: const Text('Добавить раздел'),
+                      onPressed: _addSection,
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 12),
+                if (_sections.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(
+                      child: Text(
+                        'Нет разделов. Нажмите «Добавить раздел».',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  )
+                else
+                  ...List.generate(_sections.length, (i) {
+                    final s = _sections[i];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        title: Text(s.title),
+                        subtitle: Text(
+                          'Порядок: ${s.order} · полей: ${s.fields.length}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              onPressed: () => _editSection(i),
+                              tooltip: 'Редактировать',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () => _deleteSection(i),
+                              tooltip: 'Удалить',
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
               ],
             ),
           );
@@ -117,7 +240,7 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
         description: _descriptionController.text.trim().isEmpty
             ? template.description
             : _descriptionController.text.trim(),
-        sections: template.sections,
+        sections: _sections,
       );
       await getIt<TemplateRepository>().saveTemplate(updated);
       if (!mounted) return;
@@ -136,5 +259,220 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+}
+
+/// Диалог редактирования раздела: название, порядок, список полей (ключ, подпись, тип).
+class _SectionEditDialog extends StatefulWidget {
+  final TemplateSection section;
+
+  const _SectionEditDialog({required this.section});
+
+  @override
+  State<_SectionEditDialog> createState() => _SectionEditDialogState();
+}
+
+class _SectionEditDialogState extends State<_SectionEditDialog> {
+  late TextEditingController _titleController;
+  late TextEditingController _orderController;
+  final List<TextEditingController> _keyControllers = [];
+  final List<TextEditingController> _labelControllers = [];
+  final List<String> _types = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.section.title);
+    _orderController = TextEditingController(text: '${widget.section.order}');
+    final fields = widget.section.fields;
+    if (fields.isEmpty) {
+      _keyControllers.add(TextEditingController(text: 'field_1'));
+      _labelControllers.add(TextEditingController(text: 'Поле 1'));
+      _types.add('text');
+    } else {
+      for (final f in fields) {
+        _keyControllers.add(TextEditingController(text: f.key));
+        _labelControllers.add(TextEditingController(text: f.label));
+        _types.add(_typeList.contains(f.type) ? f.type : 'text');
+      }
+    }
+  }
+
+  static const _typeList = ['text', 'number', 'date', 'select', 'multiselect', 'bool'];
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _orderController.dispose();
+    for (final c in _keyControllers) {
+      c.dispose();
+    }
+    for (final c in _labelControllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addField() {
+    setState(() {
+      final n = _keyControllers.length + 1;
+      _keyControllers.add(TextEditingController(text: 'field_$n'));
+      _labelControllers.add(TextEditingController(text: 'Поле $n'));
+      _types.add('text');
+    });
+  }
+
+  void _removeField(int i) {
+    if (_keyControllers.length <= 1) return;
+    setState(() {
+      _keyControllers[i].dispose();
+      _labelControllers[i].dispose();
+      _keyControllers.removeAt(i);
+      _labelControllers.removeAt(i);
+      _types.removeAt(i);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Редактирование раздела'),
+      content: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: 300,
+            maxWidth: MediaQuery.of(context).size.width * 0.9,
+          ),
+          child: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Название раздела',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _orderController,
+                decoration: const InputDecoration(
+                  labelText: 'Порядок (число)',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              Text('Поля раздела', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              ...List.generate(_keyControllers.length, (i) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text('Ключ', style: Theme.of(context).textTheme.bodySmall),
+                            const SizedBox(height: 4),
+                            TextField(
+                              controller: _keyControllers[i],
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text('Подпись', style: Theme.of(context).textTheme.bodySmall),
+                            const SizedBox(height: 4),
+                            TextField(
+                              controller: _labelControllers[i],
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text('Тип', style: Theme.of(context).textTheme.bodySmall),
+                            const SizedBox(height: 4),
+                            DropdownButtonFormField<String>(
+                              initialValue: _typeList.contains(_types[i]) ? _types[i] : 'text',
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                              items: _typeList.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                              onChanged: (v) {
+                                if (v != null) setState(() => _types[i] = v);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        onPressed: _keyControllers.length > 1 ? () => _removeField(i) : null,
+                        tooltip: 'Удалить поле',
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Добавить поле'),
+                onPressed: _addField,
+              ),
+            ],
+          ),
+        ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final order = int.tryParse(_orderController.text.trim()) ?? widget.section.order;
+            final existingFields = widget.section.fields;
+            final newFields = <TemplateField>[];
+            for (var i = 0; i < _keyControllers.length; i++) {
+              final key = _keyControllers[i].text.trim().isEmpty ? 'field_$i' : _keyControllers[i].text.trim();
+              final label = _labelControllers[i].text.trim().isEmpty ? 'Поле ${i + 1}' : _labelControllers[i].text.trim();
+              final oldField = i < existingFields.length ? existingFields[i] : null;
+              newFields.add(TemplateField(
+                key: key,
+                label: label,
+                type: _types[i],
+                unit: oldField?.unit,
+                required: oldField?.required ?? false,
+                options: oldField?.options,
+                validation: oldField?.validation,
+                extraction: oldField?.extraction,
+              ));
+            }
+            Navigator.pop(
+              context,
+              TemplateSection(
+                id: widget.section.id,
+                title: _titleController.text.trim().isEmpty ? widget.section.title : _titleController.text.trim(),
+                order: order.clamp(1, 999),
+                fields: newFields,
+              ),
+            );
+          },
+          child: const Text('Сохранить'),
+        ),
+      ],
+    );
   }
 }

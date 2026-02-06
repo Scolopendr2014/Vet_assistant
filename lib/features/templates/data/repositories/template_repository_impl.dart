@@ -20,13 +20,80 @@ class TemplateRepositoryImpl implements TemplateRepository {
 
   @override
   Future<ProtocolTemplate?> getById(String id) async {
-    final row = await (_db.select(_db.templates)..where((t) => t.type.equals(id)))
+    // VET-071: возвращаем активную версию шаблона данного типа
+    try {
+      var rows = await _db.customSelect(
+        'SELECT * FROM templates WHERE type = ? AND is_active = 1 LIMIT 1',
+        variables: [Variable.withString(id)],
+        readsFrom: {_db.templates},
+      ).get();
+      if (rows.isEmpty) {
+        rows = await _db.customSelect(
+          'SELECT * FROM templates WHERE type = ? ORDER BY version LIMIT 1',
+          variables: [Variable.withString(id)],
+          readsFrom: {_db.templates},
+        ).get();
+      }
+      if (rows.isNotEmpty) {
+        final row = rows.single;
+        final map = jsonDecode(row.read<String>('content')) as Map<String, dynamic>;
+        return ProtocolTemplate.fromJson(map);
+      }
+    } catch (_) {
+      // БД без колонки is_active (schema < 4) — выборка по type
+      final row = await (_db.select(_db.templates)..where((t) => t.type.equals(id)))
+          .getSingleOrNull();
+      if (row != null) {
+        final map = jsonDecode(row.content) as Map<String, dynamic>;
+        return ProtocolTemplate.fromJson(map);
+      }
+    }
+    return _loadFromAsset(id);
+  }
+
+  @override
+  Future<ProtocolTemplate?> getByTemplateRowId(String templateRowId) async {
+    final row = await (_db.select(_db.templates)
+          ..where((t) => t.id.equals(templateRowId)))
         .getSingleOrNull();
     if (row != null) {
       final map = jsonDecode(row.content) as Map<String, dynamic>;
       return ProtocolTemplate.fromJson(map);
     }
-    return _loadFromAsset(id);
+    return null;
+  }
+
+  @override
+  Future<List<ProtocolTemplate>> getVersionsByType(String type) async {
+    final rows = await (_db.select(_db.templates)
+          ..where((t) => t.type.equals(type))
+          ..orderBy([(t) => OrderingTerm.asc(t.version)]))
+        .get();
+    return rows
+        .map((r) =>
+            ProtocolTemplate.fromJson(jsonDecode(r.content) as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<void> setActiveVersion(String templateRowId) async {
+    final row = await (_db.select(_db.templates)
+          ..where((t) => t.id.equals(templateRowId)))
+        .getSingleOrNull();
+    if (row == null) return;
+    try {
+      final type = row.type;
+      await _db.customStatement(
+        'UPDATE templates SET is_active = 0 WHERE type = ?',
+        [type],
+      );
+      await _db.customStatement(
+        'UPDATE templates SET is_active = 1 WHERE id = ?',
+        [templateRowId],
+      );
+    } catch (_) {
+      // БД без колонки is_active (schema < 4) — ничего не делаем
+    }
   }
 
   @override
@@ -87,8 +154,9 @@ class TemplateRepositoryImpl implements TemplateRepository {
         updatedAt: Value(now),
       ));
     } else {
+      final newId = '${template.id}_${template.version}';
       await _db.into(_db.templates).insert(TemplatesCompanion.insert(
-            id: '${template.id}_${template.version}',
+            id: newId,
             type: template.id,
             version: template.version,
             locale: template.locale,
@@ -96,6 +164,14 @@ class TemplateRepositoryImpl implements TemplateRepository {
             createdAt: now,
             updatedAt: now,
           ));
+      try {
+        await _db.customStatement(
+          'UPDATE templates SET is_active = 0 WHERE id = ?',
+          [newId],
+        );
+      } catch (_) {
+        // БД без колонки is_active (schema < 4)
+      }
     }
   }
 

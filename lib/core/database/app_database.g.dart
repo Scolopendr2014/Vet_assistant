@@ -1510,6 +1510,16 @@ class $TemplatesTable extends Templates
   late final GeneratedColumn<String> content = GeneratedColumn<String>(
       'content', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _isActiveMeta =
+      const VerificationMeta('isActive');
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+      'is_active', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_active" IN (0, 1))'),
+      defaultValue: const Constant(true));
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -1524,7 +1534,7 @@ class $TemplatesTable extends Templates
       type: DriftSqlType.int, requiredDuringInsert: true);
   @override
   List<GeneratedColumn> get $columns =>
-      [id, type, version, locale, content, createdAt, updatedAt];
+      [id, type, version, locale, content, isActive, createdAt, updatedAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1564,6 +1574,10 @@ class $TemplatesTable extends Templates
     } else if (isInserting) {
       context.missing(_contentMeta);
     }
+    if (data.containsKey('is_active')) {
+      context.handle(_isActiveMeta,
+          isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -1595,6 +1609,8 @@ class $TemplatesTable extends Templates
           .read(DriftSqlType.string, data['${effectivePrefix}locale'])!,
       content: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      isActive: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_active'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -1614,6 +1630,9 @@ class Template extends DataClass implements Insertable<Template> {
   final String version;
   final String locale;
   final String content;
+
+  /// VET-071: только одна версия шаблона данного типа может быть активной.
+  final bool isActive;
   final int createdAt;
   final int updatedAt;
   const Template(
@@ -1622,6 +1641,7 @@ class Template extends DataClass implements Insertable<Template> {
       required this.version,
       required this.locale,
       required this.content,
+      required this.isActive,
       required this.createdAt,
       required this.updatedAt});
   @override
@@ -1632,6 +1652,7 @@ class Template extends DataClass implements Insertable<Template> {
     map['version'] = Variable<String>(version);
     map['locale'] = Variable<String>(locale);
     map['content'] = Variable<String>(content);
+    map['is_active'] = Variable<bool>(isActive);
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
     return map;
@@ -1644,6 +1665,7 @@ class Template extends DataClass implements Insertable<Template> {
       version: Value(version),
       locale: Value(locale),
       content: Value(content),
+      isActive: Value(isActive),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -1658,6 +1680,7 @@ class Template extends DataClass implements Insertable<Template> {
       version: serializer.fromJson<String>(json['version']),
       locale: serializer.fromJson<String>(json['locale']),
       content: serializer.fromJson<String>(json['content']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
     );
@@ -1671,6 +1694,7 @@ class Template extends DataClass implements Insertable<Template> {
       'version': serializer.toJson<String>(version),
       'locale': serializer.toJson<String>(locale),
       'content': serializer.toJson<String>(content),
+      'isActive': serializer.toJson<bool>(isActive),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
     };
@@ -1682,6 +1706,7 @@ class Template extends DataClass implements Insertable<Template> {
           String? version,
           String? locale,
           String? content,
+          bool? isActive,
           int? createdAt,
           int? updatedAt}) =>
       Template(
@@ -1690,6 +1715,7 @@ class Template extends DataClass implements Insertable<Template> {
         version: version ?? this.version,
         locale: locale ?? this.locale,
         content: content ?? this.content,
+        isActive: isActive ?? this.isActive,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
@@ -1700,6 +1726,7 @@ class Template extends DataClass implements Insertable<Template> {
       version: data.version.present ? data.version.value : this.version,
       locale: data.locale.present ? data.locale.value : this.locale,
       content: data.content.present ? data.content.value : this.content,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -1713,6 +1740,7 @@ class Template extends DataClass implements Insertable<Template> {
           ..write('version: $version, ')
           ..write('locale: $locale, ')
           ..write('content: $content, ')
+          ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1720,8 +1748,8 @@ class Template extends DataClass implements Insertable<Template> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, type, version, locale, content, createdAt, updatedAt);
+  int get hashCode => Object.hash(
+      id, type, version, locale, content, isActive, createdAt, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1731,6 +1759,7 @@ class Template extends DataClass implements Insertable<Template> {
           other.version == this.version &&
           other.locale == this.locale &&
           other.content == this.content &&
+          other.isActive == this.isActive &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -1741,6 +1770,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
   final Value<String> version;
   final Value<String> locale;
   final Value<String> content;
+  final Value<bool> isActive;
   final Value<int> createdAt;
   final Value<int> updatedAt;
   final Value<int> rowid;
@@ -1750,6 +1780,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     this.version = const Value.absent(),
     this.locale = const Value.absent(),
     this.content = const Value.absent(),
+    this.isActive = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1760,6 +1791,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     required String version,
     required String locale,
     required String content,
+    this.isActive = const Value.absent(),
     required int createdAt,
     required int updatedAt,
     this.rowid = const Value.absent(),
@@ -1776,6 +1808,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     Expression<String>? version,
     Expression<String>? locale,
     Expression<String>? content,
+    Expression<bool>? isActive,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
     Expression<int>? rowid,
@@ -1786,6 +1819,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
       if (version != null) 'version': version,
       if (locale != null) 'locale': locale,
       if (content != null) 'content': content,
+      if (isActive != null) 'is_active': isActive,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -1798,6 +1832,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
       Value<String>? version,
       Value<String>? locale,
       Value<String>? content,
+      Value<bool>? isActive,
       Value<int>? createdAt,
       Value<int>? updatedAt,
       Value<int>? rowid}) {
@@ -1807,6 +1842,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
       version: version ?? this.version,
       locale: locale ?? this.locale,
       content: content ?? this.content,
+      isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -1831,6 +1867,9 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
     if (content.present) {
       map['content'] = Variable<String>(content.value);
     }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -1851,6 +1890,7 @@ class TemplatesCompanion extends UpdateCompanion<Template> {
           ..write('version: $version, ')
           ..write('locale: $locale, ')
           ..write('content: $content, ')
+          ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -3285,6 +3325,7 @@ typedef $$TemplatesTableCreateCompanionBuilder = TemplatesCompanion Function({
   required String version,
   required String locale,
   required String content,
+  Value<bool> isActive,
   required int createdAt,
   required int updatedAt,
   Value<int> rowid,
@@ -3295,6 +3336,7 @@ typedef $$TemplatesTableUpdateCompanionBuilder = TemplatesCompanion Function({
   Value<String> version,
   Value<String> locale,
   Value<String> content,
+  Value<bool> isActive,
   Value<int> createdAt,
   Value<int> updatedAt,
   Value<int> rowid,
@@ -3323,6 +3365,9 @@ class $$TemplatesTableFilterComposer
 
   ColumnFilters<String> get content => $composableBuilder(
       column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+      column: $table.isActive, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -3355,6 +3400,9 @@ class $$TemplatesTableOrderingComposer
   ColumnOrderings<String> get content => $composableBuilder(
       column: $table.content, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+      column: $table.isActive, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -3385,6 +3433,9 @@ class $$TemplatesTableAnnotationComposer
 
   GeneratedColumn<String> get content =>
       $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -3421,6 +3472,7 @@ class $$TemplatesTableTableManager extends RootTableManager<
             Value<String> version = const Value.absent(),
             Value<String> locale = const Value.absent(),
             Value<String> content = const Value.absent(),
+            Value<bool> isActive = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<int> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -3431,6 +3483,7 @@ class $$TemplatesTableTableManager extends RootTableManager<
             version: version,
             locale: locale,
             content: content,
+            isActive: isActive,
             createdAt: createdAt,
             updatedAt: updatedAt,
             rowid: rowid,
@@ -3441,6 +3494,7 @@ class $$TemplatesTableTableManager extends RootTableManager<
             required String version,
             required String locale,
             required String content,
+            Value<bool> isActive = const Value.absent(),
             required int createdAt,
             required int updatedAt,
             Value<int> rowid = const Value.absent(),
@@ -3451,6 +3505,7 @@ class $$TemplatesTableTableManager extends RootTableManager<
             version: version,
             locale: locale,
             content: content,
+            isActive: isActive,
             createdAt: createdAt,
             updatedAt: updatedAt,
             rowid: rowid,
