@@ -108,32 +108,24 @@ class TemplateRepositoryImpl implements TemplateRepository {
 
   @override
   Future<void> loadFromAssets() async {
+    // VET-075: не перезаписывать БД содержимым из assets — только подставлять шаблон из asset, если в БД ещё нет ни одной версии этого типа (seed). Иначе правки пользователя терялись при каждом getAll().
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final id in _ids) {
+      final existingRows = await (_db.select(_db.templates)
+            ..where((x) => x.type.equals(id)))
+          .get();
+      if (existingRows.isNotEmpty) continue;
       final t = await _loadFromAsset(id);
       if (t != null) {
-        final existing = await (_db.select(_db.templates)
-              ..where((x) => x.type.equals(id)))
-            .getSingleOrNull();
-        final content = jsonEncode(t.toJson());
-        if (existing != null) {
-          await (_db.update(_db.templates)..where((x) => x.type.equals(id)))
-              .write(TemplatesCompanion(
-            version: Value(t.version),
-            content: Value(content),
-            updatedAt: Value(now),
-          ));
-        } else {
-          await _db.into(_db.templates).insert(TemplatesCompanion.insert(
-                id: '${id}_${t.version}',
-                type: id,
-                version: t.version,
-                locale: t.locale,
-                content: content,
-                createdAt: now,
-                updatedAt: now,
-              ));
-        }
+        await _db.into(_db.templates).insert(TemplatesCompanion.insert(
+              id: '${id}_${t.version}',
+              type: id,
+              version: t.version,
+              locale: t.locale,
+              content: jsonEncode(t.toJson()),
+              createdAt: now,
+              updatedAt: now,
+            ));
       }
     }
   }
@@ -142,21 +134,22 @@ class TemplateRepositoryImpl implements TemplateRepository {
   Future<void> saveTemplate(ProtocolTemplate template) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final content = jsonEncode(template.toJson());
+    // VET-075: ищем строку по первичному ключу (id = type_version), иначе при нескольких версиях getSingleOrNull по type бросает
+    final rowId = '${template.id}_${template.version}';
     final existing = await (_db.select(_db.templates)
-          ..where((x) => x.type.equals(template.id)))
+          ..where((x) => x.id.equals(rowId)))
         .getSingleOrNull();
     if (existing != null) {
-      await (_db.update(_db.templates)
-            ..where((x) => x.type.equals(template.id)))
-          .write(TemplatesCompanion(
-        version: Value(template.version),
-        content: Value(content),
-        updatedAt: Value(now),
-      ));
+      await (_db.update(_db.templates)..where((x) => x.id.equals(rowId))).write(
+            TemplatesCompanion(
+              version: Value(template.version),
+              content: Value(content),
+              updatedAt: Value(now),
+            ),
+          );
     } else {
-      final newId = '${template.id}_${template.version}';
       await _db.into(_db.templates).insert(TemplatesCompanion.insert(
-            id: newId,
+            id: rowId,
             type: template.id,
             version: template.version,
             locale: template.locale,
@@ -166,8 +159,8 @@ class TemplateRepositoryImpl implements TemplateRepository {
           ));
       try {
         await _db.customStatement(
-          'UPDATE templates SET is_active = 0 WHERE id = ?',
-          [newId],
+          'UPDATE templates SET is_active = 0 WHERE type = ? AND id != ?',
+          [template.id, rowId],
         );
       } catch (_) {
         // БД без колонки is_active (schema < 4)

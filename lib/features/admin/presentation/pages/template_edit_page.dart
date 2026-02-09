@@ -60,6 +60,28 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     });
   }
 
+  void _moveSectionUp(int index) {
+    if (index <= 0) return;
+    setState(() {
+      final a = _sections[index];
+      final b = _sections[index - 1];
+      _sections[index - 1] = TemplateSection(id: a.id, title: a.title, order: b.order, fields: a.fields);
+      _sections[index] = TemplateSection(id: b.id, title: b.title, order: a.order, fields: b.fields);
+      _sections.sort((a, b) => a.order.compareTo(b.order));
+    });
+  }
+
+  void _moveSectionDown(int index) {
+    if (index >= _sections.length - 1) return;
+    setState(() {
+      final a = _sections[index];
+      final b = _sections[index + 1];
+      _sections[index] = TemplateSection(id: b.id, title: b.title, order: a.order, fields: b.fields);
+      _sections[index + 1] = TemplateSection(id: a.id, title: a.title, order: b.order, fields: a.fields);
+      _sections.sort((a, b) => a.order.compareTo(b.order));
+    });
+  }
+
   void _deleteSection(int index) async {
     final section = _sections[index];
     final confirm = await showDialog<bool>(
@@ -124,9 +146,10 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
               ),
             )
           else
-            TextButton(
+            IconButton(
+              icon: const Icon(Icons.save),
+              tooltip: 'Сохранить',
               onPressed: _save,
-              child: const Text('Сохранить'),
             ),
         ],
       ),
@@ -170,9 +193,9 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
                       'Разделы протокола (${_sections.length})',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    FilledButton.icon(
-                      icon: const Icon(Icons.add, size: 20),
-                      label: const Text('Добавить раздел'),
+                    IconButton.filled(
+                      icon: const Icon(Icons.add),
+                      tooltip: 'Добавить раздел',
                       onPressed: _addSection,
                     ),
                   ],
@@ -202,6 +225,16 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_upward),
+                              onPressed: i > 0 ? () => _moveSectionUp(i) : null,
+                              tooltip: 'Поднять',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.arrow_downward),
+                              onPressed: i < _sections.length - 1 ? () => _moveSectionDown(i) : null,
+                              tooltip: 'Опустить',
+                            ),
                             IconButton(
                               icon: const Icon(Icons.edit),
                               onPressed: () => _editSection(i),
@@ -278,6 +311,10 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
   final List<TextEditingController> _keyControllers = [];
   final List<TextEditingController> _labelControllers = [];
   final List<String> _types = [];
+  final List<String?> _referenceTypes = [];
+  final List<TextEditingController> _rangeMinControllers = [];
+  final List<TextEditingController> _rangeMaxControllers = [];
+  final List<TextEditingController> _rangeUnitControllers = [];
 
   @override
   void initState() {
@@ -289,16 +326,30 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
       _keyControllers.add(TextEditingController(text: 'field_1'));
       _labelControllers.add(TextEditingController(text: 'Поле 1'));
       _types.add('text');
+      _referenceTypes.add(null);
+      _rangeMinControllers.add(TextEditingController());
+      _rangeMaxControllers.add(TextEditingController());
+      _rangeUnitControllers.add(TextEditingController());
     } else {
       for (final f in fields) {
         _keyControllers.add(TextEditingController(text: f.key));
         _labelControllers.add(TextEditingController(text: f.label));
         _types.add(_typeList.contains(f.type) ? f.type : 'text');
+        _referenceTypes.add(f.validation != null ? f.validation!['referenceType'] as String? : null);
+        final v = f.validation;
+        _rangeMinControllers.add(TextEditingController(
+          text: v != null && v['min'] != null ? '${v['min']}' : '',
+        ));
+        _rangeMaxControllers.add(TextEditingController(
+          text: v != null && v['max'] != null ? '${v['max']}' : '',
+        ));
+        _rangeUnitControllers.add(TextEditingController(text: f.unit ?? ''));
       }
     }
   }
 
-  static const _typeList = ['text', 'number', 'date', 'select', 'multiselect', 'bool'];
+  static const _typeList = ['text', 'number', 'date', 'select', 'multiselect', 'bool', 'reference', 'range'];
+  static const _referenceTypeList = ['species', 'rhythm', 'murmurs'];
 
   @override
   void dispose() {
@@ -310,6 +361,15 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
     for (final c in _labelControllers) {
       c.dispose();
     }
+    for (final c in _rangeMinControllers) {
+      c.dispose();
+    }
+    for (final c in _rangeMaxControllers) {
+      c.dispose();
+    }
+    for (final c in _rangeUnitControllers) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -319,6 +379,10 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
       _keyControllers.add(TextEditingController(text: 'field_$n'));
       _labelControllers.add(TextEditingController(text: 'Поле $n'));
       _types.add('text');
+      _referenceTypes.add(null);
+      _rangeMinControllers.add(TextEditingController());
+      _rangeMaxControllers.add(TextEditingController());
+      _rangeUnitControllers.add(TextEditingController());
     });
   }
 
@@ -327,9 +391,16 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
     setState(() {
       _keyControllers[i].dispose();
       _labelControllers[i].dispose();
+      _rangeMinControllers[i].dispose();
+      _rangeMaxControllers[i].dispose();
+      _rangeUnitControllers[i].dispose();
       _keyControllers.removeAt(i);
       _labelControllers.removeAt(i);
       _types.removeAt(i);
+      _referenceTypes.removeAt(i);
+      _rangeMinControllers.removeAt(i);
+      _rangeMaxControllers.removeAt(i);
+      _rangeUnitControllers.removeAt(i);
     });
   }
 
@@ -409,9 +480,70 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
                               ),
                               items: _typeList.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                               onChanged: (v) {
-                                if (v != null) setState(() => _types[i] = v);
+                                if (v != null) {
+                                  setState(() {
+                                    _types[i] = v;
+                                    if (v == 'reference' && _referenceTypes[i] == null) {
+                                      _referenceTypes[i] = _referenceTypeList.first;
+                                    }
+                                  });
+                                }
                               },
                             ),
+                            if (_types[i] == 'reference') ...[
+                              const SizedBox(height: 8),
+                              Text('Справочник', style: Theme.of(context).textTheme.bodySmall),
+                              const SizedBox(height: 4),
+                              DropdownButtonFormField<String>(
+                                initialValue: _referenceTypeList.contains(_referenceTypes[i])
+                                    ? _referenceTypes[i]
+                                    : _referenceTypeList.first,
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: _referenceTypeList
+                                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v != null) setState(() => _referenceTypes[i] = v);
+                                },
+                              ),
+                            ],
+                            if (_types[i] == 'range') ...[
+                              const SizedBox(height: 8),
+                              Text('Мин', style: Theme.of(context).textTheme.bodySmall),
+                              const SizedBox(height: 4),
+                              TextField(
+                                controller: _rangeMinControllers[i],
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.number,
+                              ),
+                              const SizedBox(height: 8),
+                              Text('Макс', style: Theme.of(context).textTheme.bodySmall),
+                              const SizedBox(height: 4),
+                              TextField(
+                                controller: _rangeMaxControllers[i],
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.number,
+                              ),
+                              const SizedBox(height: 8),
+                              Text('Ед. изм.', style: Theme.of(context).textTheme.bodySmall),
+                              const SizedBox(height: 4),
+                              TextField(
+                                controller: _rangeUnitControllers[i],
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -449,14 +581,34 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
               final key = _keyControllers[i].text.trim().isEmpty ? 'field_$i' : _keyControllers[i].text.trim();
               final label = _labelControllers[i].text.trim().isEmpty ? 'Поле ${i + 1}' : _labelControllers[i].text.trim();
               final oldField = i < existingFields.length ? existingFields[i] : null;
+              Map<String, dynamic>? validation;
+              String? unit;
+              List<String>? options;
+              if (_types[i] == 'reference') {
+                validation = {'referenceType': _referenceTypes[i] ?? _referenceTypeList.first};
+                options = null;
+                unit = oldField?.unit;
+              } else if (_types[i] == 'range') {
+                final min = num.tryParse(_rangeMinControllers[i].text.trim());
+                final max = num.tryParse(_rangeMaxControllers[i].text.trim());
+                validation = {};
+                if (min != null) validation!['min'] = min;
+                if (max != null) validation!['max'] = max;
+                unit = _rangeUnitControllers[i].text.trim().isEmpty ? null : _rangeUnitControllers[i].text.trim();
+                options = oldField?.options;
+              } else {
+                validation = oldField?.validation;
+                unit = oldField?.unit;
+                options = oldField?.options;
+              }
               newFields.add(TemplateField(
                 key: key,
                 label: label,
                 type: _types[i],
-                unit: oldField?.unit,
+                unit: unit,
                 required: oldField?.required ?? false,
-                options: oldField?.options,
-                validation: oldField?.validation,
+                options: options,
+                validation: validation,
                 extraction: oldField?.extraction,
               ));
             }
