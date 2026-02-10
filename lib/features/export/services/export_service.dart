@@ -10,9 +10,10 @@ import '../../examinations/domain/repositories/examination_repository.dart';
 import '../../patients/domain/repositories/patient_repository.dart';
 
 /// Экспорт БД в JSON (ТЗ 4.7.1) и ZIP с медиа (ТЗ 4.7.1 опция).
+/// Формат экспорта сохраняет для каждого протокола templateType и templateVersion (VET-085).
 class ExportService {
-  /// Экспорт в JSON-строку (без медиа).
-  static Future<String> exportToJson() async {
+  /// Собирает данные для экспорта: пациенты и протоколы (в т.ч. templateType, templateVersion).
+  static Future<({List<Map<String, dynamic>> patientsJson, List<Map<String, dynamic>> examinationsJson})> _buildExportData() async {
     final patientRepo = getIt<PatientRepository>();
     final examRepo = getIt<ExaminationRepository>();
     final patients = await patientRepo.getAll();
@@ -49,11 +50,17 @@ class ExportService {
         });
       }
     }
+    return (patientsJson: patientsJson, examinationsJson: allExams);
+  }
+
+  /// Экспорт в JSON-строку (без медиа).
+  static Future<String> exportToJson() async {
+    final exportData = await _buildExportData();
     final data = {
       'version': 1,
       'exportedAt': DateTime.now().toIso8601String(),
-      'patients': patientsJson,
-      'examinations': allExams,
+      'patients': exportData.patientsJson,
+      'examinations': exportData.examinationsJson,
     };
     return const JsonEncoder.withIndent('  ').convert(data);
   }
@@ -61,47 +68,13 @@ class ExportService {
   /// Экспорт в ZIP: data.json + папка photos с файлами осмотров (ТЗ 4.7.1).
   /// Возвращает путь к созданному ZIP-файлу.
   static Future<String> exportToZip() async {
-    final patientRepo = getIt<PatientRepository>();
-    final examRepo = getIt<ExaminationRepository>();
-    final patients = await patientRepo.getAll();
-    final patientsJson = patients.map((p) => {
-          'id': p.id,
-          'species': p.species,
-          'breed': p.breed,
-          'name': p.name,
-          'gender': p.gender,
-          'color': p.color,
-          'chipNumber': p.chipNumber,
-          'tattoo': p.tattoo,
-          'ownerName': p.ownerName,
-          'ownerPhone': p.ownerPhone,
-          'ownerEmail': p.ownerEmail,
-          'createdAt': p.createdAt.toIso8601String(),
-          'updatedAt': p.updatedAt.toIso8601String(),
-        }).toList();
-    final allExams = <Map<String, dynamic>>[];
-    for (final p in patients) {
-      final exams = await examRepo.getByPatientId(p.id);
-      for (final e in exams) {
-        allExams.add({
-          'id': e.id,
-          'patientId': e.patientId,
-          'templateType': e.templateType,
-          'templateVersion': e.templateVersion,
-          'examinationDate': e.examinationDate.toIso8601String(),
-          'anamnesis': e.anamnesis,
-          'extractedFields': e.extractedFields,
-          'validationStatus': e.validationStatus,
-          'createdAt': e.createdAt.toIso8601String(),
-          'updatedAt': e.updatedAt.toIso8601String(),
-        });
-      }
-    }
+    final exportData = await _buildExportData();
+    final patients = await getIt<PatientRepository>().getAll();
     final data = {
       'version': 1,
       'exportedAt': DateTime.now().toIso8601String(),
-      'patients': patientsJson,
-      'examinations': allExams,
+      'patients': exportData.patientsJson,
+      'examinations': exportData.examinationsJson,
     };
     final jsonString = const JsonEncoder.withIndent('  ').convert(data);
     final archive = Archive();
@@ -109,6 +82,7 @@ class ExportService {
       ArchiveFile('data.json', jsonString.length, jsonString.codeUnits),
     );
 
+    final examRepo = getIt<ExaminationRepository>();
     for (final patient in patients) {
       final exams = await examRepo.getByPatientId(patient.id);
       for (final exam in exams) {

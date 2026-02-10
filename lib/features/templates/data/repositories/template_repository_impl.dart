@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../domain/entities/protocol_template.dart';
+import '../../domain/entities/template_version_row.dart';
 import '../../domain/repositories/template_repository.dart';
 
 /// Реализация репозитория шаблонов: assets -> парсинг -> кэш в БД.
@@ -73,6 +74,43 @@ class TemplateRepositoryImpl implements TemplateRepository {
         .map((r) =>
             ProtocolTemplate.fromJson(jsonDecode(r.content) as Map<String, dynamic>))
         .toList();
+  }
+
+  @override
+  Future<List<TemplateVersionRow>> getVersionRowsByType(String type) async {
+    try {
+      final rows = await (_db.select(_db.templates)
+            ..where((t) => t.type.equals(type))
+            ..orderBy([(t) => OrderingTerm.asc(t.version)]))
+          .get();
+      return rows.map((r) {
+        final template = ProtocolTemplate.fromJson(
+            jsonDecode(r.content) as Map<String, dynamic>);
+        return TemplateVersionRow(
+          rowId: r.id,
+          template: template,
+          isActive: r.isActive,
+        );
+      }).toList();
+    } catch (_) {
+      // БД без колонки is_active (schema < 4): выборка без is_active
+      final rows = await _db.customSelect(
+        'SELECT id, type, version, locale, content FROM templates WHERE type = ? ORDER BY version',
+        variables: [Variable.withString(type)],
+        readsFrom: {_db.templates},
+      ).get();
+      return rows.asMap().entries.map((e) {
+        final r = e.value;
+        final i = e.key;
+        final template = ProtocolTemplate.fromJson(
+            jsonDecode(r.read<String>('content')) as Map<String, dynamic>);
+        return TemplateVersionRow(
+          rowId: r.read<String>('id'),
+          template: template,
+          isActive: i == 0,
+        );
+      }).toList();
+    }
   }
 
   @override

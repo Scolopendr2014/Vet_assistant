@@ -89,7 +89,8 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     final examAsync = isEditMode
         ? ref.watch(examinationByIdProvider(widget.examinationId!))
         : null;
-    final templatesAsync = ref.watch(templateListProvider);
+    // VET-084: только активные шаблоны (по одному на тип) для выбора при создании протокола.
+    final templatesAsync = ref.watch(activeTemplateListProvider);
     final effectivePatientId = _existingExam?.patientId ?? widget.patientId;
     final patientAsync = effectivePatientId != null
         ? ref.watch(patientDetailProvider(effectivePatientId))
@@ -408,6 +409,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
               ),
             _TemplateFormSection(
               templateId: _selectedTemplateId!,
+              templateVersion: _existingExam?.templateVersion,
               values: _formValues,
               onChanged: (key, value) {
                 setState(() {
@@ -705,12 +707,15 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
 class _TemplateFormSection extends ConsumerWidget {
   const _TemplateFormSection({
     required this.templateId,
+    this.templateVersion,
     required this.values,
     required this.onChanged,
     this.scrollable = true,
   });
 
   final String templateId;
+  /// При редактировании протокола — версия шаблона для загрузки по версии (VET-080).
+  final String? templateVersion;
   final Map<String, dynamic> values;
   final void Function(String key, dynamic value) onChanged;
   /// VET-049: false — форма внутри общего скролла страницы.
@@ -718,25 +723,64 @@ class _TemplateFormSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final useByVersion = templateVersion != null && templateVersion!.isNotEmpty;
+    if (useByVersion) {
+      final resultAsync = ref.watch(templateForExaminationProvider((type: templateId, version: templateVersion!)));
+      return resultAsync.when(
+        data: (result) {
+          final template = result.template;
+          if (template == null) {
+            return const Center(child: Text('Шаблон не найден'));
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (result.versionNotFound)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Material(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        'Версия шаблона $templateVersion не найдена, отображается активная версия.',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              _buildFormFromTemplate(template),
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Ошибка: $e')),
+      );
+    }
     final templateAsync = ref.watch(templateByIdProvider(templateId));
     return templateAsync.when(
       data: (template) {
         if (template == null) {
           return const Center(child: Text('Шаблон не найден'));
         }
-        final form = TemplateFormBuilder(
-          template: template,
-          values: values,
-          onChanged: onChanged,
-        );
-        if (scrollable) {
-          return SingleChildScrollView(child: form);
-        }
-        return form;
+        return _buildFormFromTemplate(template);
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Ошибка: $e')),
     );
+  }
+
+  Widget _buildFormFromTemplate(ProtocolTemplate template) {
+    final form = TemplateFormBuilder(
+      template: template,
+      values: values,
+      onChanged: onChanged,
+    );
+    if (scrollable) {
+      return SingleChildScrollView(child: form);
+    }
+    return form;
   }
 }
 

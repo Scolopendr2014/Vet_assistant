@@ -11,7 +11,8 @@ class ValidationSettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final templatesAsync = ref.watch(templateListProvider);
+    // VET-083: список активных шаблонов, переход в редактор по row id.
+    final templatesAsync = ref.watch(activeTemplateListProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -27,10 +28,11 @@ class ValidationSettingsPage extends ConsumerWidget {
             itemCount: templates.length,
             itemBuilder: (context, i) {
               final t = templates[i];
+              final templateRowId = '${t.id}_${t.version}';
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: InkWell(
-                  onTap: () => context.push('/admin/dashboard/templates/${t.id}'),
+                  onTap: () => context.push('/admin/dashboard/templates/$templateRowId'),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(

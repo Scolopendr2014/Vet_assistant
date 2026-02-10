@@ -48,12 +48,27 @@ class ExaminationDetailPage extends ConsumerWidget {
           if (exam == null) {
             return const Center(child: Text('Протокол не найден'));
           }
-          final templateAsync = ref.watch(templateByIdProvider(exam.templateType));
+          final templateAsync = ref.watch(templateForExaminationProvider((type: exam.templateType, version: exam.templateVersion)));
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (templateAsync.valueOrNull?.versionNotFound == true)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Material(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          'Версия шаблона ${exam.templateVersion} не найдена, отображается активная версия.',
+                          style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ),
                 Row(
                   children: [
                     Icon(
@@ -91,10 +106,10 @@ class ExaminationDetailPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   templateAsync.when(
-                    data: (template) => _buildExtractedFields(
+                    data: (result) => _buildExtractedFields(
                       context,
                       exam.extractedFields,
-                      template,
+                      result.template,
                     ),
                     loading: () => _buildExtractedFields(
                       context,
