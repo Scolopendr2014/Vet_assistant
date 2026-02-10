@@ -1,13 +1,20 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/di/di_container.dart';
 import '../../../templates/domain/entities/protocol_template.dart';
 import '../../../templates/domain/repositories/template_repository.dart';
+import '../../../templates/domain/utils/version_utils.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
 
-/// Редактирование шаблона протокола (VET-032, VET-065). Заголовок, описание, CRUD разделов.
+/// Редактирование шаблона протокола (VET-032, VET-065). Заголовок, описание, CRUD разделов. VET-076: создание новой версии. VET-093: экспорт шаблона.
 class TemplateEditPage extends ConsumerStatefulWidget {
   final String templateId;
 
@@ -130,7 +137,11 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
 
   @override
   Widget build(BuildContext context) {
-    final templateAsync = ref.watch(templateByIdProvider(widget.templateId));
+    // VET-082: id из маршрута — row id (cardio_1.0.0) или тип (cardio); по row id грузим конкретную версию.
+    final isRowId = widget.templateId.contains('_');
+    final templateAsync = isRowId
+        ? ref.watch(templateByRowIdProvider(widget.templateId))
+        : ref.watch(templateByIdProvider(widget.templateId));
 
     return Scaffold(
       appBar: AppBar(
@@ -145,12 +156,23 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             )
-          else
+          else ...[
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: 'Создать новую версию',
+              onPressed: _createNewVersion,
+            ),
+            IconButton(
+              icon: const Icon(Icons.file_download_outlined),
+              tooltip: 'Экспорт шаблона',
+              onPressed: _exportTemplate,
+            ),
             IconButton(
               icon: const Icon(Icons.save),
               tooltip: 'Сохранить',
               onPressed: _save,
             ),
+          ],
         ],
       ),
       body: templateAsync.when(
@@ -261,7 +283,10 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
   }
 
   Future<void> _save() async {
-    final template = await ref.read(templateByIdProvider(widget.templateId).future);
+    final isRowId = widget.templateId.contains('_');
+    final template = isRowId
+        ? await ref.read(templateByRowIdProvider(widget.templateId).future)
+        : await ref.read(templateByIdProvider(widget.templateId).future);
     if (template == null) return;
     setState(() => _saving = true);
     try {
@@ -278,7 +303,10 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
       await getIt<TemplateRepository>().saveTemplate(updated);
       if (!mounted) return;
       ref.invalidate(templateListProvider);
-      ref.invalidate(templateByIdProvider(widget.templateId));
+      ref.invalidate(templateByIdProvider(template.id));
+      ref.invalidate(templateByRowIdProvider('${template.id}_${template.version}'));
+      ref.invalidate(versionRowsByTypeProvider(template.id));
+      ref.invalidate(activeTemplateListProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Шаблон сохранён')),
       );
@@ -292,6 +320,205 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  /// Экспорт текущего шаблона в JSON (VET-093). Данные берутся из формы.
+  Future<void> _exportTemplate() async {
+    final isRowId = widget.templateId.contains('_');
+    final template = isRowId
+        ? await ref.read(templateByRowIdProvider(widget.templateId).future)
+        : await ref.read(templateByIdProvider(widget.templateId).future);
+    if (template == null) return;
+    final toExport = ProtocolTemplate(
+      id: template.id,
+      version: template.version,
+      locale: template.locale,
+      title: _titleController.text.trim().isEmpty ? template.title : _titleController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty
+          ? template.description
+          : _descriptionController.text.trim(),
+      sections: _sections,
+    );
+    final json = const JsonEncoder.withIndent('  ').convert(toExport.toJson());
+    try {
+      final dir = await getTemporaryDirectory();
+      final name = '${template.id}_${template.version}.json'.replaceAll(RegExp(r'[^\w\-.]'), '_');
+      final file = File('${dir.path}/$name');
+      await file.writeAsString(json);
+      if (!mounted) return;
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'Шаблон протокола ${template.title} v${template.version}',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Шаблон экспортирован')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка экспорта: $e')),
+        );
+      }
+    }
+  }
+
+  /// Создать новую версию шаблона на основе текущих данных формы (VET-076). VET-094: предлагаем версию, которой ещё нет в БД.
+  Future<void> _createNewVersion() async {
+    final isRowId = widget.templateId.contains('_');
+    final template = isRowId
+        ? await ref.read(templateByRowIdProvider(widget.templateId).future)
+        : await ref.read(templateByIdProvider(widget.templateId).future);
+    if (template == null) return;
+    if (!mounted) return;
+    final repo = getIt<TemplateRepository>();
+    final existingList = await repo.getVersionsByType(template.id);
+    final existingVersions = existingList.map((t) => t.version).toSet();
+    String suggestedVersion = nextVersion(template.version);
+    while (existingVersions.contains(suggestedVersion)) {
+      suggestedVersion = nextVersion(suggestedVersion);
+    }
+    if (!mounted) return;
+    final result = await showDialog<({String version, bool makeActive})>(
+      context: context,
+      builder: (ctx) => _CreateVersionDialog(
+        currentVersion: template.version,
+        suggestedVersion: suggestedVersion,
+      ),
+    );
+    if (result == null || !mounted) return;
+    final newVersion = result.version.trim();
+    if (newVersion.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Укажите версию')),
+      );
+      return;
+    }
+    if (existingVersions.contains(newVersion)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Версия $newVersion уже существует. Выберите другую (например $suggestedVersion) или сохраните в текущую версию.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final newTemplate = ProtocolTemplate(
+        id: template.id,
+        version: newVersion,
+        locale: template.locale,
+        title: _titleController.text.trim().isEmpty ? template.title : _titleController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? template.description
+            : _descriptionController.text.trim(),
+        sections: _sections,
+      );
+      final repo = getIt<TemplateRepository>();
+      await repo.saveTemplate(newTemplate);
+      if (result.makeActive) {
+        await repo.setActiveVersion('${template.id}_$newVersion');
+      }
+      if (!mounted) return;
+      ref.invalidate(templateListProvider);
+      ref.invalidate(templateByIdProvider(template.id));
+      ref.invalidate(templateByRowIdProvider('${template.id}_${template.version}'));
+      ref.invalidate(templateByRowIdProvider('${template.id}_$newVersion'));
+      ref.invalidate(versionRowsByTypeProvider(template.id));
+      ref.invalidate(activeTemplateListProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Создана новая версия $newVersion')),
+      );
+      context.go('/admin/dashboard/templates/${template.id}_$newVersion');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+}
+
+/// Диалог ввода новой версии шаблона (VET-076). VET-094: начальное значение — версия без коллизии с БД.
+class _CreateVersionDialog extends StatefulWidget {
+  final String currentVersion;
+  final String suggestedVersion;
+
+  const _CreateVersionDialog({
+    required this.currentVersion,
+    required this.suggestedVersion,
+  });
+
+  @override
+  State<_CreateVersionDialog> createState() => _CreateVersionDialogState();
+}
+
+class _CreateVersionDialogState extends State<_CreateVersionDialog> {
+  late TextEditingController _versionController;
+  bool _makeActive = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _versionController = TextEditingController(text: widget.suggestedVersion);
+  }
+
+  @override
+  void dispose() {
+    _versionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Создать новую версию'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _versionController,
+            decoration: const InputDecoration(
+              labelText: 'Новая версия',
+              border: OutlineInputBorder(),
+              hintText: 'например 1.0.1',
+            ),
+            autofocus: true,
+          ),
+          const SizedBox(height: 16),
+          CheckboxListTile(
+            value: _makeActive,
+            onChanged: (v) => setState(() => _makeActive = v ?? true),
+            title: const Text('Сделать активной по умолчанию'),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final version = _versionController.text.trim();
+            if (version.isEmpty) return;
+            Navigator.pop(
+              context,
+              (version: version, makeActive: _makeActive),
+            );
+          },
+          child: const Text('Создать'),
+        ),
+      ],
+    );
   }
 }
 
@@ -592,8 +819,8 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
                 final min = num.tryParse(_rangeMinControllers[i].text.trim());
                 final max = num.tryParse(_rangeMaxControllers[i].text.trim());
                 validation = {};
-                if (min != null) validation!['min'] = min;
-                if (max != null) validation!['max'] = max;
+                if (min != null) validation['min'] = min;
+                if (max != null) validation['max'] = max;
                 unit = _rangeUnitControllers[i].text.trim().isEmpty ? null : _rangeUnitControllers[i].text.trim();
                 options = oldField?.options;
               } else {

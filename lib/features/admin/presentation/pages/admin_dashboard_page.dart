@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -8,17 +9,29 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../core/di/di_container.dart';
 import '../../../export/services/export_service.dart';
 import '../../../export/services/import_service.dart';
+import '../../../templates/domain/entities/protocol_template.dart';
+import '../../../templates/domain/repositories/template_repository.dart';
+import '../../../templates/domain/utils/version_utils.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
 
-/// Панель администратора (ТЗ 4.6). Список шаблонов, импорт.
+/// Человекочитаемые названия типов шаблонов (VET-081).
+const Map<String, String> _templateTypeNames = {
+  'cardio': 'Кардиология',
+  'ultrasound': 'УЗИ',
+  'dental': 'Стоматология',
+};
+
+/// Панель администратора (ТЗ 4.6, VET-081). Список версий шаблонов по типу, импорт.
 class AdminDashboardPage extends ConsumerWidget {
   const AdminDashboardPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final templatesAsync = ref.watch(templateListProvider);
+    final repo = ref.watch(templateRepositoryProvider);
+    final templateIds = repo.templateIds;
 
     return Scaffold(
       appBar: AppBar(
@@ -43,10 +56,17 @@ class AdminDashboardPage extends ConsumerWidget {
               const PopupMenuItem(value: 'zip', child: Text('Экспорт ZIP с медиа')),
             ],
           ),
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.upload_file),
-            onPressed: () => _importJson(context),
-            tooltip: 'Импорт из JSON',
+            tooltip: 'Импорт',
+            onSelected: (value) {
+              if (value == 'db') _importJson(context);
+              if (value == 'template') _importTemplate(context, ref);
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'db', child: Text('Импорт БД (JSON)')),
+              const PopupMenuItem(value: 'template', child: Text('Импорт шаблона протокола')),
+            ],
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -55,30 +75,21 @@ class AdminDashboardPage extends ConsumerWidget {
           ),
         ],
       ),
-      body: templatesAsync.when(
-        data: (templates) {
-          if (templates.isEmpty) {
-            return const Center(child: Text('Нет шаблонов'));
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: templates.length,
-            itemBuilder: (context, i) {
-              final t = templates[i];
-                return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text(t.title),
-                  subtitle: Text('${t.id} · v${t.version}'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/admin/dashboard/templates/${t.id}'),
-                ),
-              );
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Ошибка: $e')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          for (final type in templateIds)
+            _VersionListSection(
+              type: type,
+              typeName: _templateTypeNames[type] ?? type,
+              onNavigate: (rowId) => context.push('/admin/dashboard/templates/$rowId'),
+              onSetActive: () {
+                ref.invalidate(versionRowsByTypeProvider(type));
+                ref.invalidate(activeTemplateListProvider);
+                ref.invalidate(templateByIdProvider(type));
+              },
+            ),
+        ],
       ),
     );
   }
@@ -161,6 +172,138 @@ class AdminDashboardPage extends ConsumerWidget {
     );
   }
 
+  /// Импорт шаблона протокола из JSON (VET-093). При совпадении ID+версия — выбор: новая версия или обновить.
+  static Future<void> _importTemplate(BuildContext context, WidgetRef ref) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      withData: false,
+      withReadStream: false,
+    );
+    if (result == null || result.files.isEmpty || !context.mounted) return;
+    final path = result.files.single.path;
+    if (path == null || path.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось получить путь к файлу')),
+        );
+      }
+      return;
+    }
+    String? content;
+    try {
+      content = await File(path).readAsString();
+    } catch (_) {
+      content = null;
+    }
+    if (content == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось прочитать файл')),
+        );
+      }
+      return;
+    }
+    Map<String, dynamic>? map;
+    try {
+      final decoded = jsonDecode(content);
+      if (decoded is! Map<String, dynamic>) throw const FormatException('Не объект JSON');
+      map = decoded;
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Файл не является валидным JSON шаблона')),
+        );
+      }
+      return;
+    }
+    if (map['id'] == null || map['title'] == null || map['sections'] == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('В файле отсутствуют обязательные поля: id, title, sections')),
+        );
+      }
+      return;
+    }
+    ProtocolTemplate template;
+    try {
+      template = ProtocolTemplate.fromJson(map);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка разбора шаблона: $e')),
+        );
+      }
+      return;
+    }
+    final repo = getIt<TemplateRepository>();
+    final rowId = '${template.id}_${template.version}';
+    final existing = await repo.getByTemplateRowId(rowId);
+    if (existing != null && context.mounted) {
+      // Первая свободная версия, чтобы не перезаписать существующую (VET-094: импорт).
+      final existingList = await repo.getVersionsByType(template.id);
+      final existingVersions = existingList.map((t) => t.version).toSet();
+      String suggestedNewVersion = nextVersion(template.version);
+      while (existingVersions.contains(suggestedNewVersion)) {
+        suggestedNewVersion = nextVersion(suggestedNewVersion);
+      }
+      if (!context.mounted) return;
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Шаблон уже существует'),
+          content: Text(
+            'Шаблон «${template.title}» с ID ${template.id} и версией ${template.version} уже есть в системе.\n\n'
+            'Добавить как новую версию (будет создана версия $suggestedNewVersion) или обновить существующую?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'update'),
+              child: const Text('Обновить существующую'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'new_version'),
+              child: const Text('Добавить новую версию'),
+            ),
+          ],
+        ),
+      );
+      if (choice == null || !context.mounted) return;
+      if (choice == 'new_version') {
+        template = ProtocolTemplate(
+          id: template.id,
+          version: suggestedNewVersion,
+          locale: template.locale,
+          title: template.title,
+          description: template.description,
+          sections: template.sections,
+        );
+      }
+    }
+    try {
+      await repo.saveTemplate(template);
+      if (!context.mounted) return;
+      ref.invalidate(templateListProvider);
+      ref.invalidate(templateByIdProvider(template.id));
+      ref.invalidate(templateByRowIdProvider('${template.id}_${template.version}'));
+      ref.invalidate(versionRowsByTypeProvider(template.id));
+      ref.invalidate(activeTemplateListProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Шаблон «${template.title}» v${template.version} импортирован')),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка импорта: $e')),
+        );
+      }
+    }
+  }
+
   static Future<void> _importJson(BuildContext context) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -234,5 +377,101 @@ class AdminDashboardPage extends ConsumerWidget {
       ),
     );
   }
-
 }
+
+/// Секция списка версий шаблона одного типа (VET-081).
+class _VersionListSection extends ConsumerWidget {
+  const _VersionListSection({
+    required this.type,
+    required this.typeName,
+    required this.onNavigate,
+    required this.onSetActive,
+  });
+
+  final String type;
+  final String typeName;
+  final void Function(String rowId) onNavigate;
+  final VoidCallback onSetActive;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final versionsAsync = ref.watch(versionRowsByTypeProvider(type));
+    return versionsAsync.when(
+      data: (rows) {
+        if (rows.isEmpty) {
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(typeName, style: Theme.of(context).textTheme.titleMedium),
+            ),
+          );
+        }
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Text(typeName, style: Theme.of(context).textTheme.titleMedium),
+              ),
+              ...rows.map((row) {
+                return ListTile(
+                  title: Text(row.template.title),
+                  subtitle: Text('v${row.template.version}'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (row.isActive)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: Chip(
+                            label: Text('Активна'),
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: TextButton(
+                            onPressed: () async {
+                              await getIt<TemplateRepository>().setActiveVersion(row.rowId);
+                              if (context.mounted) onSetActive();
+                            },
+                            child: const Text('Сделать активной'),
+                          ),
+                        ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                  onTap: () => onNavigate(row.rowId),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+      loading: () => Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: ListTile(
+          title: Text(typeName),
+          trailing: const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      error: (e, _) => Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: ListTile(
+          title: Text(typeName),
+          subtitle: Text('Ошибка: $e', style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
+        ),
+      ),
+    );
+  }
+}
+
