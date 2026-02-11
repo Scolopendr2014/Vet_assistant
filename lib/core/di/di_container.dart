@@ -13,6 +13,10 @@ import '../../features/speech/providers/private_server_recognizer.dart';
 import '../../features/speech/providers/on_device_recognizer.dart';
 import '../../features/references/domain/reference_repository.dart';
 import '../../features/references/data/reference_repository_impl.dart';
+import '../../features/vet_profile/domain/repositories/vet_profile_repository.dart';
+import '../../features/vet_profile/data/repositories/vet_profile_repository_impl.dart';
+import '../../features/vet_profile/domain/repositories/vet_clinic_repository.dart';
+import '../../features/vet_profile/data/repositories/vet_clinic_repository_impl.dart';
 
 final getIt = GetIt.instance;
 
@@ -52,5 +56,12 @@ Future<void> setupDependencies() async {
 
   getIt.registerSingleton<ReferenceRepository>(
     ReferenceRepositoryImpl(db),
+  );
+
+  getIt.registerSingleton<VetProfileRepository>(
+    VetProfileRepositoryImpl(db),
+  );
+  getIt.registerSingleton<VetClinicRepository>(
+    VetClinicRepositoryImpl(db),
   );
 }

@@ -30,6 +30,13 @@ class VetAssistantApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
         fontFamily: 'Roboto',
+        appBarTheme: const AppBarTheme(
+          titleTextStyle: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.black,
+          ),
+        ),
       ),
       routerConfig: router.config,
     );

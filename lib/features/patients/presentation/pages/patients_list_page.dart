@@ -115,10 +115,38 @@ class _PatientsListPageState extends ConsumerState<PatientsListPage> {
               )
             : const Text('Пациенты'),
         actions: [
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.settings),
-            onPressed: () => context.push('/admin/login'),
-            tooltip: 'Администратор',
+            tooltip: 'Меню',
+            onSelected: (value) {
+              if (value == 'profile') {
+                context.push('/profile/edit');
+              } else if (value == 'admin') {
+                context.push('/admin/login');
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person, size: 20),
+                    SizedBox(width: 8),
+                    Text('Настройка профиля'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'admin',
+                child: Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings, size: 20),
+                    SizedBox(width: 8),
+                    Text('Вход администратора'),
+                  ],
+                ),
+              ),
+            ],
           ),
           if (_searchMode)
             IconButton(

@@ -10,6 +10,8 @@ import 'package:intl/intl.dart';
 import '../../examinations/domain/entities/examination.dart';
 import '../../examinations/domain/entities/examination_photo.dart';
 import '../../templates/domain/entities/protocol_template.dart';
+import '../../vet_profile/domain/entities/vet_clinic.dart';
+import '../../vet_profile/domain/entities/vet_profile.dart';
 
 /// Шрифты с кириллицей для PDF (VET-001). Кэш в памяти.
 pw.Font? _pdfFontRegular;
@@ -147,6 +149,105 @@ bool _usePositionedLayout(ProtocolTemplate? template, Map<String, dynamic> extra
   return (title: titleWidget, body: body);
 }
 
+/// VET-122: строка профиля для нижнего колонтитула — <Специализация> <ФИО>. <Примечание>
+String _formatProfileFooterLine(VetProfile profile) {
+  final parts = <String>[];
+  if (profile.specialization != null && profile.specialization!.trim().isNotEmpty) {
+    parts.add(profile.specialization!.trim());
+  }
+  parts.add('${profile.fullName}.');
+  if (profile.note != null && profile.note!.trim().isNotEmpty) {
+    parts.add(profile.note!.trim());
+  }
+  return parts.join(' ');
+}
+
+/// VET-122 доработка: строка клиники для колонтитула — Название, Адрес, Тел., Email.
+String _formatClinicFooterLine(VetClinic clinic) {
+  final parts = <String>[clinic.name];
+  if (clinic.address != null && clinic.address!.trim().isNotEmpty) {
+    parts.add(clinic.address!.trim());
+  }
+  if (clinic.phone != null && clinic.phone!.trim().isNotEmpty) {
+    parts.add(clinic.phone!.trim());
+  }
+  if (clinic.email != null && clinic.email!.trim().isNotEmpty) {
+    parts.add(clinic.email!.trim());
+  }
+  return parts.join(' · ');
+}
+
+/// VET-122 доработка: двойная черта (верхняя жирная, нижняя стандартная) + клиника первой строкой.
+pw.Widget Function(pw.Context) _footerBuilder({
+  required VetProfile? vetProfile,
+  required VetClinic? vetClinic,
+  required pw.TextStyle style10,
+}) {
+  return (context) {
+    final pageText = pw.Text(
+      'Страница ${context.pageNumber} из ${context.pagesCount}',
+      style: style10,
+    );
+    final hasContent = vetProfile != null || vetClinic != null;
+    final separator = pw.Column(
+      mainAxisSize: pw.MainAxisSize.min,
+      children: [
+        pw.Container(
+          height: 2,
+          margin: const pw.EdgeInsets.only(top: 12),
+          color: PdfColors.black,
+        ),
+        pw.Container(height: 1, color: PdfColors.black),
+        pw.SizedBox(height: hasContent ? 8 : 0),
+      ],
+    );
+    if (!hasContent) {
+      return pw.Container(
+        margin: const pw.EdgeInsets.only(top: 16),
+        child: pw.Column(
+          mainAxisSize: pw.MainAxisSize.min,
+          crossAxisAlignment: pw.CrossAxisAlignment.end,
+          children: [
+            separator,
+            pageText,
+          ],
+        ),
+      );
+    }
+    final footerLines = <pw.Widget>[];
+    if (vetClinic != null) {
+      footerLines.add(pw.Text(_formatClinicFooterLine(vetClinic), style: style10));
+    }
+    if (vetProfile != null) {
+      footerLines.add(pw.Text(_formatProfileFooterLine(vetProfile), style: style10));
+    }
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(top: 8),
+      child: pw.Column(
+        mainAxisSize: pw.MainAxisSize.min,
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          separator,
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(
+                child: pw.Column(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: footerLines,
+                ),
+              ),
+              pageText,
+            ],
+          ),
+        ],
+      ),
+    );
+  };
+}
+
 /// Генерация PDF протокола (ТЗ 4.5). Использует шрифт с кириллицей (VET-001). VET-068: при передаче template вывод по разделам с учётом настроек печати; при наличии позиций — абсолютное размещение; поддержка autoGrowHeight для полей. VET-096: настройки шапки.
 class ProtocolPdfService {
   /// Создаёт PDF и возвращает путь к файлу.
@@ -156,6 +257,8 @@ class ProtocolPdfService {
     String? patientName,
     String? patientOwner,
     ProtocolTemplate? template,
+    VetProfile? vetProfile,
+    VetClinic? vetClinic,
   }) async {
     await _loadPdfFonts();
     final font = _pdfFontRegular;
@@ -240,14 +343,7 @@ class ProtocolPdfService {
               contentWidth,
               contentHeight,
             ),
-            footer: (context) => pw.Container(
-              alignment: pw.Alignment.centerRight,
-              margin: const pw.EdgeInsets.only(top: 16),
-              child: pw.Text(
-                'Страница ${context.pageNumber} из ${context.pagesCount}',
-                style: style10,
-              ),
-            ),
+            footer: _footerBuilder(vetProfile: vetProfile, vetClinic: vetClinic, style10: style10),
           ),
         );
       } else if (usePositionedPage1) {
@@ -406,11 +502,7 @@ class ProtocolPdfService {
                 pw.Header(level: 1, child: pw.Text('Фотографии', style: style12)),
                 ..._photoWidgets(examination.photos, photoBytesList, style10),
               ],
-              footer: (context) => pw.Container(
-                alignment: pw.Alignment.centerRight,
-                margin: const pw.EdgeInsets.only(top: 16),
-                child: pw.Text('Страница ${context.pageNumber} из ${context.pagesCount}', style: style10),
-              ),
+              footer: _footerBuilder(vetProfile: vetProfile, vetClinic: vetClinic, style10: style10),
             ),
           );
         }
@@ -442,11 +534,7 @@ class ProtocolPdfService {
               ..._photoWidgets(examination.photos, photoBytesList, style10),
             ],
           ],
-          footer: (context) => pw.Container(
-            alignment: pw.Alignment.centerRight,
-            margin: const pw.EdgeInsets.only(top: 16),
-            child: pw.Text('Страница ${context.pageNumber} из ${context.pagesCount}', style: style10),
-          ),
+          footer: _footerBuilder(vetProfile: vetProfile, vetClinic: vetClinic, style10: style10),
         ),
       );
     }

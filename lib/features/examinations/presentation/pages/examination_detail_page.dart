@@ -6,15 +6,20 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../../../core/di/di_container.dart';
 import '../../../patients/domain/repositories/patient_repository.dart';
 import '../../../pdf/services/protocol_pdf_service.dart';
+import '../../../vet_profile/domain/entities/vet_clinic.dart';
+import '../../../vet_profile/domain/repositories/vet_clinic_repository.dart';
 import '../../domain/repositories/examination_repository.dart';
 import '../../services/audio_playback_service.dart';
 import '../../utils/template_icons.dart';
 import '../../../templates/domain/entities/protocol_template.dart';
 import '../../../templates/domain/repositories/template_repository.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
+import '../../../vet_profile/domain/repositories/vet_profile_repository.dart';
 import '../providers/examination_providers.dart';
 
 /// Детали протокола осмотра (ТЗ 4.3).
@@ -285,11 +290,32 @@ class ExaminationDetailPage extends ConsumerWidget {
       final rowId = '${exam.templateType}_${exam.templateVersion}';
       template = await templateRepo.getByTemplateRowId(rowId);
       template ??= await templateRepo.getById(exam.templateType);
+      final vetProfile = await getIt<VetProfileRepository>().get();
+      VetClinic? vetClinic;
+      final clinicRepo = getIt<VetClinicRepository>();
+      if (exam.vetClinicId != null) {
+        vetClinic = await clinicRepo.getById(exam.vetClinicId!);
+      }
+      if (vetClinic == null) {
+        final prefs = await SharedPreferences.getInstance();
+        final clinicId = prefs.getString('vet_current_clinic_id');
+        if (clinicId != null) {
+          vetClinic = await clinicRepo.getById(clinicId);
+        }
+      }
+      if (vetClinic == null && vetProfile != null) {
+        final clinics = await clinicRepo.getByProfileId(vetProfile.id);
+        if (clinics.length == 1) {
+          vetClinic = clinics.first;
+        }
+      }
       final path = await ProtocolPdfService.generate(
         exam,
         patientName: patientName,
         patientOwner: patientOwner,
         template: template,
+        vetProfile: vetProfile,
+        vetClinic: vetClinic,
       );
       await Share.shareXFiles([XFile(path)]);
     } catch (e) {

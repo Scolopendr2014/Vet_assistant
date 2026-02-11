@@ -44,6 +44,7 @@ class Examinations extends Table {
   TextColumn get validationStatus => text()();
   TextColumn get warnings => text().nullable()(); // JSON array
   TextColumn get pdfPath => text().nullable()();
+  TextColumn get vetClinicId => text().nullable()(); // VET-145: активная клиника при создании
   IntColumn get createdAt => integer()();
   IntColumn get updatedAt => integer()();
   
@@ -91,7 +92,39 @@ class ExaminationPhotos extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [Patients, Examinations, Templates, References, ExaminationPhotos])
+/// VET-125: профиль ветеринара (ФИО, Специализация, Примечание)
+class VetProfiles extends Table {
+  TextColumn get id => text()();
+  TextColumn get lastName => text()();
+  TextColumn get firstName => text()();
+  TextColumn get patronymic => text().nullable()();
+  TextColumn get specialization => text().nullable()();
+  TextColumn get note => text().nullable()();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// VET-137: вет. клиники (привязка к профилю по vet_profile_id)
+class VetClinics extends Table {
+  TextColumn get id => text()();
+  TextColumn get vetProfileId => text().references(VetProfiles, #id)();
+  TextColumn get logoPath => text().nullable()();
+  TextColumn get name => text()();
+  TextColumn get address => text().nullable()();
+  TextColumn get phone => text().nullable()();
+  TextColumn get email => text().nullable()();
+  IntColumn get orderIndex => integer().withDefault(const Constant(0))();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DriftDatabase(tables: [Patients, Examinations, Templates, References, ExaminationPhotos, VetProfiles, VetClinics])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -144,6 +177,17 @@ class AppDatabase extends _$AppDatabase {
               seenTypes.add(type);
             }
           }
+        }
+        if (from < 5) {
+          await m.createTable(vetProfiles);
+        }
+        if (from < 6) {
+          await m.createTable(vetClinics);
+        }
+        if (from < 7) {
+          await customStatement(
+            'ALTER TABLE examinations ADD COLUMN vet_clinic_id TEXT',
+          );
         }
       },
     );

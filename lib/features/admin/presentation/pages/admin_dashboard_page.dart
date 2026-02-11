@@ -35,43 +35,98 @@ class AdminDashboardPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Панель администратора'),
+        title: const Text('Шаблоны протоколов'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.list_alt),
-            onPressed: () => context.push('/admin/dashboard/references'),
-            tooltip: 'Справочники',
-          ),
-          IconButton(
-            icon: const Icon(Icons.rule),
-            onPressed: () => context.push('/admin/dashboard/validation'),
-            tooltip: 'Настройки валидации',
-          ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.download),
-            tooltip: 'Экспорт',
-            onSelected: (value) => _exportChoice(context, value),
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'json', child: Text('Экспорт JSON')),
-              const PopupMenuItem(value: 'zip', child: Text('Экспорт ZIP с медиа')),
-            ],
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.upload_file),
-            tooltip: 'Импорт',
+            icon: const Icon(Icons.menu),
+            tooltip: 'Меню',
             onSelected: (value) {
-              if (value == 'db') _importJson(context);
-              if (value == 'template') _importTemplate(context, ref);
+              if (value == 'references') {
+                context.push('/admin/dashboard/references');
+              } else if (value == 'validation') {
+                context.push('/admin/dashboard/validation');
+              } else if (value == 'json' || value == 'zip') {
+                _exportChoice(context, value);
+              } else if (value == 'db') {
+                _importJson(context);
+              } else if (value == 'template') {
+                _importTemplate(context, ref);
+              } else if (value == 'logout') {
+                context.go('/patients');
+              }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'db', child: Text('Импорт БД (JSON)')),
-              const PopupMenuItem(value: 'template', child: Text('Импорт шаблона протокола')),
+              const PopupMenuItem(
+                value: 'references',
+                child: Row(
+                  children: [
+                    Icon(Icons.list_alt, size: 20),
+                    SizedBox(width: 8),
+                    Text('Справочники'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'validation',
+                child: Row(
+                  children: [
+                    Icon(Icons.rule, size: 20),
+                    SizedBox(width: 8),
+                    Text('Настройки валидации'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'json',
+                child: Row(
+                  children: [
+                    Icon(Icons.download, size: 20),
+                    SizedBox(width: 8),
+                    Text('Экспорт JSON'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'zip',
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_zip_outlined, size: 20),
+                    SizedBox(width: 8),
+                    Text('Экспорт ZIP с медиа'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'db',
+                child: Row(
+                  children: [
+                    Icon(Icons.upload_file, size: 20),
+                    SizedBox(width: 8),
+                    Text('Импорт БД (JSON)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'template',
+                child: Row(
+                  children: [
+                    Icon(Icons.file_upload_outlined, size: 20),
+                    SizedBox(width: 8),
+                    Text('Импорт шаблона протокола'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, size: 20),
+                    SizedBox(width: 8),
+                    Text('Выйти'),
+                  ],
+                ),
+              ),
             ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => context.go('/patients'),
-            tooltip: 'Выйти',
           ),
         ],
       ),
@@ -423,31 +478,43 @@ class _VersionListSection extends ConsumerWidget {
               ),
               ...rows.map((row) {
                 return ListTile(
-                  title: Text(row.template.title),
+                  title: Text(
+                    row.template.title,
+                    style: row.isActive
+                        ? Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          )
+                        : null,
+                  ),
                   subtitle: Text('v${row.template.version}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      if (row.isActive)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 8),
-                          child: Chip(
-                            label: Text('Активна'),
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        )
-                      else
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: TextButton(
-                            onPressed: () async {
-                              await getIt<TemplateRepository>().setActiveVersion(row.rowId);
-                              if (context.mounted) onSetActive();
-                            },
-                            child: const Text('Сделать активной'),
-                          ),
-                        ),
+                      SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: row.isActive
+                            ? Center(
+                                child: Icon(
+                                  Icons.check_box,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  size: 24,
+                                ),
+                              )
+                            : IconButton(
+                                icon: const Icon(Icons.check_box_outline_blank, size: 24),
+                                onPressed: () async {
+                                  await getIt<TemplateRepository>().setActiveVersion(row.rowId);
+                                  if (context.mounted) onSetActive();
+                                },
+                                tooltip: 'Сделать активной',
+                                padding: EdgeInsets.zero,
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(48, 48),
+                                ),
+                              ),
+                      ),
                       const Icon(Icons.chevron_right),
                     ],
                   ),

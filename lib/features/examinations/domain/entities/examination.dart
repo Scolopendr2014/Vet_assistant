@@ -18,6 +18,7 @@ class Examination {
     required this.validationStatus,
     this.warnings = const [],
     this.pdfPath,
+    this.vetClinicId,
     required this.createdAt,
     required this.updatedAt,
     this.photos = const [],
@@ -38,6 +39,8 @@ class Examination {
   final String validationStatus; // valid, warnings, errors
   final List<Map<String, dynamic>> warnings;
   final String? pdfPath;
+  /// VET-145: ID активной клиники при создании/редактировании протокола.
+  final String? vetClinicId;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<ExaminationPhoto> photos;

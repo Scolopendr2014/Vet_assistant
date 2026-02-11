@@ -64,6 +64,7 @@ class ExaminationRepositoryImpl implements ExaminationRepository {
           ? const Value.absent()
           : Value(jsonEncode(examination.warnings)),
       pdfPath: Value(examination.pdfPath),
+      vetClinicId: Value(examination.vetClinicId),
       createdAt: now,
       updatedAt: now,
     );
@@ -94,6 +95,7 @@ class ExaminationRepositoryImpl implements ExaminationRepository {
             ? const Value.absent()
             : Value(jsonEncode(examination.warnings)),
         pdfPath: Value(examination.pdfPath),
+        vetClinicId: Value(examination.vetClinicId),
         updatedAt: Value(now),
       ));
     } else {
@@ -178,6 +180,7 @@ class ExaminationRepositoryImpl implements ExaminationRepository {
       validationStatus: row.validationStatus,
       warnings: warnList,
       pdfPath: row.pdfPath,
+      vetClinicId: row.vetClinicId,
       createdAt: DateTime.fromMillisecondsSinceEpoch(row.createdAt),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(row.updatedAt),
       photos: photos,

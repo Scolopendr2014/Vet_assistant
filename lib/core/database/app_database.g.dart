@@ -734,6 +734,12 @@ class $ExaminationsTable extends Examinations
   late final GeneratedColumn<String> pdfPath = GeneratedColumn<String>(
       'pdf_path', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _vetClinicIdMeta =
+      const VerificationMeta('vetClinicId');
+  @override
+  late final GeneratedColumn<String> vetClinicId = GeneratedColumn<String>(
+      'vet_clinic_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -763,6 +769,7 @@ class $ExaminationsTable extends Examinations
         validationStatus,
         warnings,
         pdfPath,
+        vetClinicId,
         createdAt,
         updatedAt
       ];
@@ -865,6 +872,12 @@ class $ExaminationsTable extends Examinations
       context.handle(_pdfPathMeta,
           pdfPath.isAcceptableOrUnknown(data['pdf_path']!, _pdfPathMeta));
     }
+    if (data.containsKey('vet_clinic_id')) {
+      context.handle(
+          _vetClinicIdMeta,
+          vetClinicId.isAcceptableOrUnknown(
+              data['vet_clinic_id']!, _vetClinicIdMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -916,6 +929,8 @@ class $ExaminationsTable extends Examinations
           .read(DriftSqlType.string, data['${effectivePrefix}warnings']),
       pdfPath: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}pdf_path']),
+      vetClinicId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}vet_clinic_id']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -945,6 +960,7 @@ class Examination extends DataClass implements Insertable<Examination> {
   final String validationStatus;
   final String? warnings;
   final String? pdfPath;
+  final String? vetClinicId;
   final int createdAt;
   final int updatedAt;
   const Examination(
@@ -963,6 +979,7 @@ class Examination extends DataClass implements Insertable<Examination> {
       required this.validationStatus,
       this.warnings,
       this.pdfPath,
+      this.vetClinicId,
       required this.createdAt,
       required this.updatedAt});
   @override
@@ -1000,6 +1017,9 @@ class Examination extends DataClass implements Insertable<Examination> {
     }
     if (!nullToAbsent || pdfPath != null) {
       map['pdf_path'] = Variable<String>(pdfPath);
+    }
+    if (!nullToAbsent || vetClinicId != null) {
+      map['vet_clinic_id'] = Variable<String>(vetClinicId);
     }
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
@@ -1041,6 +1061,9 @@ class Examination extends DataClass implements Insertable<Examination> {
       pdfPath: pdfPath == null && nullToAbsent
           ? const Value.absent()
           : Value(pdfPath),
+      vetClinicId: vetClinicId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(vetClinicId),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -1065,6 +1088,7 @@ class Examination extends DataClass implements Insertable<Examination> {
       validationStatus: serializer.fromJson<String>(json['validationStatus']),
       warnings: serializer.fromJson<String?>(json['warnings']),
       pdfPath: serializer.fromJson<String?>(json['pdfPath']),
+      vetClinicId: serializer.fromJson<String?>(json['vetClinicId']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
     );
@@ -1088,6 +1112,7 @@ class Examination extends DataClass implements Insertable<Examination> {
       'validationStatus': serializer.toJson<String>(validationStatus),
       'warnings': serializer.toJson<String?>(warnings),
       'pdfPath': serializer.toJson<String?>(pdfPath),
+      'vetClinicId': serializer.toJson<String?>(vetClinicId),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
     };
@@ -1109,6 +1134,7 @@ class Examination extends DataClass implements Insertable<Examination> {
           String? validationStatus,
           Value<String?> warnings = const Value.absent(),
           Value<String?> pdfPath = const Value.absent(),
+          Value<String?> vetClinicId = const Value.absent(),
           int? createdAt,
           int? updatedAt}) =>
       Examination(
@@ -1134,6 +1160,7 @@ class Examination extends DataClass implements Insertable<Examination> {
         validationStatus: validationStatus ?? this.validationStatus,
         warnings: warnings.present ? warnings.value : this.warnings,
         pdfPath: pdfPath.present ? pdfPath.value : this.pdfPath,
+        vetClinicId: vetClinicId.present ? vetClinicId.value : this.vetClinicId,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
@@ -1171,6 +1198,8 @@ class Examination extends DataClass implements Insertable<Examination> {
           : this.validationStatus,
       warnings: data.warnings.present ? data.warnings.value : this.warnings,
       pdfPath: data.pdfPath.present ? data.pdfPath.value : this.pdfPath,
+      vetClinicId:
+          data.vetClinicId.present ? data.vetClinicId.value : this.vetClinicId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -1194,6 +1223,7 @@ class Examination extends DataClass implements Insertable<Examination> {
           ..write('validationStatus: $validationStatus, ')
           ..write('warnings: $warnings, ')
           ..write('pdfPath: $pdfPath, ')
+          ..write('vetClinicId: $vetClinicId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1217,6 +1247,7 @@ class Examination extends DataClass implements Insertable<Examination> {
       validationStatus,
       warnings,
       pdfPath,
+      vetClinicId,
       createdAt,
       updatedAt);
   @override
@@ -1238,6 +1269,7 @@ class Examination extends DataClass implements Insertable<Examination> {
           other.validationStatus == this.validationStatus &&
           other.warnings == this.warnings &&
           other.pdfPath == this.pdfPath &&
+          other.vetClinicId == this.vetClinicId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -1258,6 +1290,7 @@ class ExaminationsCompanion extends UpdateCompanion<Examination> {
   final Value<String> validationStatus;
   final Value<String?> warnings;
   final Value<String?> pdfPath;
+  final Value<String?> vetClinicId;
   final Value<int> createdAt;
   final Value<int> updatedAt;
   final Value<int> rowid;
@@ -1277,6 +1310,7 @@ class ExaminationsCompanion extends UpdateCompanion<Examination> {
     this.validationStatus = const Value.absent(),
     this.warnings = const Value.absent(),
     this.pdfPath = const Value.absent(),
+    this.vetClinicId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1297,6 +1331,7 @@ class ExaminationsCompanion extends UpdateCompanion<Examination> {
     required String validationStatus,
     this.warnings = const Value.absent(),
     this.pdfPath = const Value.absent(),
+    this.vetClinicId = const Value.absent(),
     required int createdAt,
     required int updatedAt,
     this.rowid = const Value.absent(),
@@ -1324,6 +1359,7 @@ class ExaminationsCompanion extends UpdateCompanion<Examination> {
     Expression<String>? validationStatus,
     Expression<String>? warnings,
     Expression<String>? pdfPath,
+    Expression<String>? vetClinicId,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
     Expression<int>? rowid,
@@ -1344,6 +1380,7 @@ class ExaminationsCompanion extends UpdateCompanion<Examination> {
       if (validationStatus != null) 'validation_status': validationStatus,
       if (warnings != null) 'warnings': warnings,
       if (pdfPath != null) 'pdf_path': pdfPath,
+      if (vetClinicId != null) 'vet_clinic_id': vetClinicId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -1366,6 +1403,7 @@ class ExaminationsCompanion extends UpdateCompanion<Examination> {
       Value<String>? validationStatus,
       Value<String?>? warnings,
       Value<String?>? pdfPath,
+      Value<String?>? vetClinicId,
       Value<int>? createdAt,
       Value<int>? updatedAt,
       Value<int>? rowid}) {
@@ -1385,6 +1423,7 @@ class ExaminationsCompanion extends UpdateCompanion<Examination> {
       validationStatus: validationStatus ?? this.validationStatus,
       warnings: warnings ?? this.warnings,
       pdfPath: pdfPath ?? this.pdfPath,
+      vetClinicId: vetClinicId ?? this.vetClinicId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -1439,6 +1478,9 @@ class ExaminationsCompanion extends UpdateCompanion<Examination> {
     if (pdfPath.present) {
       map['pdf_path'] = Variable<String>(pdfPath.value);
     }
+    if (vetClinicId.present) {
+      map['vet_clinic_id'] = Variable<String>(vetClinicId.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -1469,6 +1511,7 @@ class ExaminationsCompanion extends UpdateCompanion<Examination> {
           ..write('validationStatus: $validationStatus, ')
           ..write('warnings: $warnings, ')
           ..write('pdfPath: $pdfPath, ')
+          ..write('vetClinicId: $vetClinicId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -1631,7 +1674,7 @@ class Template extends DataClass implements Insertable<Template> {
   final String locale;
   final String content;
 
-  /// VET-071: только одна версия шаблона данного типа может быть активной.
+  /// VET-071: только одна версия шаблона данного типа может быть активной (колонка в миграции 4).
   final bool isActive;
   final int createdAt;
   final int updatedAt;
@@ -2649,6 +2692,956 @@ class ExaminationPhotosCompanion extends UpdateCompanion<ExaminationPhoto> {
   }
 }
 
+class $VetProfilesTable extends VetProfiles
+    with TableInfo<$VetProfilesTable, VetProfile> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $VetProfilesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _lastNameMeta =
+      const VerificationMeta('lastName');
+  @override
+  late final GeneratedColumn<String> lastName = GeneratedColumn<String>(
+      'last_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _firstNameMeta =
+      const VerificationMeta('firstName');
+  @override
+  late final GeneratedColumn<String> firstName = GeneratedColumn<String>(
+      'first_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _patronymicMeta =
+      const VerificationMeta('patronymic');
+  @override
+  late final GeneratedColumn<String> patronymic = GeneratedColumn<String>(
+      'patronymic', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _specializationMeta =
+      const VerificationMeta('specialization');
+  @override
+  late final GeneratedColumn<String> specialization = GeneratedColumn<String>(
+      'specialization', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+      'note', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        lastName,
+        firstName,
+        patronymic,
+        specialization,
+        note,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'vet_profiles';
+  @override
+  VerificationContext validateIntegrity(Insertable<VetProfile> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('last_name')) {
+      context.handle(_lastNameMeta,
+          lastName.isAcceptableOrUnknown(data['last_name']!, _lastNameMeta));
+    } else if (isInserting) {
+      context.missing(_lastNameMeta);
+    }
+    if (data.containsKey('first_name')) {
+      context.handle(_firstNameMeta,
+          firstName.isAcceptableOrUnknown(data['first_name']!, _firstNameMeta));
+    } else if (isInserting) {
+      context.missing(_firstNameMeta);
+    }
+    if (data.containsKey('patronymic')) {
+      context.handle(
+          _patronymicMeta,
+          patronymic.isAcceptableOrUnknown(
+              data['patronymic']!, _patronymicMeta));
+    }
+    if (data.containsKey('specialization')) {
+      context.handle(
+          _specializationMeta,
+          specialization.isAcceptableOrUnknown(
+              data['specialization']!, _specializationMeta));
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+          _noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  VetProfile map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return VetProfile(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      lastName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}last_name'])!,
+      firstName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}first_name'])!,
+      patronymic: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}patronymic']),
+      specialization: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}specialization']),
+      note: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}note']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $VetProfilesTable createAlias(String alias) {
+    return $VetProfilesTable(attachedDatabase, alias);
+  }
+}
+
+class VetProfile extends DataClass implements Insertable<VetProfile> {
+  final String id;
+  final String lastName;
+  final String firstName;
+  final String? patronymic;
+  final String? specialization;
+  final String? note;
+  final int createdAt;
+  final int updatedAt;
+  const VetProfile(
+      {required this.id,
+      required this.lastName,
+      required this.firstName,
+      this.patronymic,
+      this.specialization,
+      this.note,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['last_name'] = Variable<String>(lastName);
+    map['first_name'] = Variable<String>(firstName);
+    if (!nullToAbsent || patronymic != null) {
+      map['patronymic'] = Variable<String>(patronymic);
+    }
+    if (!nullToAbsent || specialization != null) {
+      map['specialization'] = Variable<String>(specialization);
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  VetProfilesCompanion toCompanion(bool nullToAbsent) {
+    return VetProfilesCompanion(
+      id: Value(id),
+      lastName: Value(lastName),
+      firstName: Value(firstName),
+      patronymic: patronymic == null && nullToAbsent
+          ? const Value.absent()
+          : Value(patronymic),
+      specialization: specialization == null && nullToAbsent
+          ? const Value.absent()
+          : Value(specialization),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory VetProfile.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return VetProfile(
+      id: serializer.fromJson<String>(json['id']),
+      lastName: serializer.fromJson<String>(json['lastName']),
+      firstName: serializer.fromJson<String>(json['firstName']),
+      patronymic: serializer.fromJson<String?>(json['patronymic']),
+      specialization: serializer.fromJson<String?>(json['specialization']),
+      note: serializer.fromJson<String?>(json['note']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'lastName': serializer.toJson<String>(lastName),
+      'firstName': serializer.toJson<String>(firstName),
+      'patronymic': serializer.toJson<String?>(patronymic),
+      'specialization': serializer.toJson<String?>(specialization),
+      'note': serializer.toJson<String?>(note),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  VetProfile copyWith(
+          {String? id,
+          String? lastName,
+          String? firstName,
+          Value<String?> patronymic = const Value.absent(),
+          Value<String?> specialization = const Value.absent(),
+          Value<String?> note = const Value.absent(),
+          int? createdAt,
+          int? updatedAt}) =>
+      VetProfile(
+        id: id ?? this.id,
+        lastName: lastName ?? this.lastName,
+        firstName: firstName ?? this.firstName,
+        patronymic: patronymic.present ? patronymic.value : this.patronymic,
+        specialization:
+            specialization.present ? specialization.value : this.specialization,
+        note: note.present ? note.value : this.note,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  VetProfile copyWithCompanion(VetProfilesCompanion data) {
+    return VetProfile(
+      id: data.id.present ? data.id.value : this.id,
+      lastName: data.lastName.present ? data.lastName.value : this.lastName,
+      firstName: data.firstName.present ? data.firstName.value : this.firstName,
+      patronymic:
+          data.patronymic.present ? data.patronymic.value : this.patronymic,
+      specialization: data.specialization.present
+          ? data.specialization.value
+          : this.specialization,
+      note: data.note.present ? data.note.value : this.note,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VetProfile(')
+          ..write('id: $id, ')
+          ..write('lastName: $lastName, ')
+          ..write('firstName: $firstName, ')
+          ..write('patronymic: $patronymic, ')
+          ..write('specialization: $specialization, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, lastName, firstName, patronymic,
+      specialization, note, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is VetProfile &&
+          other.id == this.id &&
+          other.lastName == this.lastName &&
+          other.firstName == this.firstName &&
+          other.patronymic == this.patronymic &&
+          other.specialization == this.specialization &&
+          other.note == this.note &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class VetProfilesCompanion extends UpdateCompanion<VetProfile> {
+  final Value<String> id;
+  final Value<String> lastName;
+  final Value<String> firstName;
+  final Value<String?> patronymic;
+  final Value<String?> specialization;
+  final Value<String?> note;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const VetProfilesCompanion({
+    this.id = const Value.absent(),
+    this.lastName = const Value.absent(),
+    this.firstName = const Value.absent(),
+    this.patronymic = const Value.absent(),
+    this.specialization = const Value.absent(),
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  VetProfilesCompanion.insert({
+    required String id,
+    required String lastName,
+    required String firstName,
+    this.patronymic = const Value.absent(),
+    this.specialization = const Value.absent(),
+    this.note = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        lastName = Value(lastName),
+        firstName = Value(firstName),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<VetProfile> custom({
+    Expression<String>? id,
+    Expression<String>? lastName,
+    Expression<String>? firstName,
+    Expression<String>? patronymic,
+    Expression<String>? specialization,
+    Expression<String>? note,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (lastName != null) 'last_name': lastName,
+      if (firstName != null) 'first_name': firstName,
+      if (patronymic != null) 'patronymic': patronymic,
+      if (specialization != null) 'specialization': specialization,
+      if (note != null) 'note': note,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  VetProfilesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? lastName,
+      Value<String>? firstName,
+      Value<String?>? patronymic,
+      Value<String?>? specialization,
+      Value<String?>? note,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return VetProfilesCompanion(
+      id: id ?? this.id,
+      lastName: lastName ?? this.lastName,
+      firstName: firstName ?? this.firstName,
+      patronymic: patronymic ?? this.patronymic,
+      specialization: specialization ?? this.specialization,
+      note: note ?? this.note,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (lastName.present) {
+      map['last_name'] = Variable<String>(lastName.value);
+    }
+    if (firstName.present) {
+      map['first_name'] = Variable<String>(firstName.value);
+    }
+    if (patronymic.present) {
+      map['patronymic'] = Variable<String>(patronymic.value);
+    }
+    if (specialization.present) {
+      map['specialization'] = Variable<String>(specialization.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VetProfilesCompanion(')
+          ..write('id: $id, ')
+          ..write('lastName: $lastName, ')
+          ..write('firstName: $firstName, ')
+          ..write('patronymic: $patronymic, ')
+          ..write('specialization: $specialization, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $VetClinicsTable extends VetClinics
+    with TableInfo<$VetClinicsTable, VetClinic> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $VetClinicsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _vetProfileIdMeta =
+      const VerificationMeta('vetProfileId');
+  @override
+  late final GeneratedColumn<String> vetProfileId = GeneratedColumn<String>(
+      'vet_profile_id', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES vet_profiles (id)'));
+  static const VerificationMeta _logoPathMeta =
+      const VerificationMeta('logoPath');
+  @override
+  late final GeneratedColumn<String> logoPath = GeneratedColumn<String>(
+      'logo_path', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _addressMeta =
+      const VerificationMeta('address');
+  @override
+  late final GeneratedColumn<String> address = GeneratedColumn<String>(
+      'address', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _phoneMeta = const VerificationMeta('phone');
+  @override
+  late final GeneratedColumn<String> phone = GeneratedColumn<String>(
+      'phone', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _emailMeta = const VerificationMeta('email');
+  @override
+  late final GeneratedColumn<String> email = GeneratedColumn<String>(
+      'email', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _orderIndexMeta =
+      const VerificationMeta('orderIndex');
+  @override
+  late final GeneratedColumn<int> orderIndex = GeneratedColumn<int>(
+      'order_index', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        vetProfileId,
+        logoPath,
+        name,
+        address,
+        phone,
+        email,
+        orderIndex,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'vet_clinics';
+  @override
+  VerificationContext validateIntegrity(Insertable<VetClinic> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('vet_profile_id')) {
+      context.handle(
+          _vetProfileIdMeta,
+          vetProfileId.isAcceptableOrUnknown(
+              data['vet_profile_id']!, _vetProfileIdMeta));
+    } else if (isInserting) {
+      context.missing(_vetProfileIdMeta);
+    }
+    if (data.containsKey('logo_path')) {
+      context.handle(_logoPathMeta,
+          logoPath.isAcceptableOrUnknown(data['logo_path']!, _logoPathMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('address')) {
+      context.handle(_addressMeta,
+          address.isAcceptableOrUnknown(data['address']!, _addressMeta));
+    }
+    if (data.containsKey('phone')) {
+      context.handle(
+          _phoneMeta, phone.isAcceptableOrUnknown(data['phone']!, _phoneMeta));
+    }
+    if (data.containsKey('email')) {
+      context.handle(
+          _emailMeta, email.isAcceptableOrUnknown(data['email']!, _emailMeta));
+    }
+    if (data.containsKey('order_index')) {
+      context.handle(
+          _orderIndexMeta,
+          orderIndex.isAcceptableOrUnknown(
+              data['order_index']!, _orderIndexMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  VetClinic map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return VetClinic(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      vetProfileId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}vet_profile_id'])!,
+      logoPath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}logo_path']),
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      address: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}address']),
+      phone: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}phone']),
+      email: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}email']),
+      orderIndex: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}order_index'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $VetClinicsTable createAlias(String alias) {
+    return $VetClinicsTable(attachedDatabase, alias);
+  }
+}
+
+class VetClinic extends DataClass implements Insertable<VetClinic> {
+  final String id;
+  final String vetProfileId;
+  final String? logoPath;
+  final String name;
+  final String? address;
+  final String? phone;
+  final String? email;
+  final int orderIndex;
+  final int createdAt;
+  final int updatedAt;
+  const VetClinic(
+      {required this.id,
+      required this.vetProfileId,
+      this.logoPath,
+      required this.name,
+      this.address,
+      this.phone,
+      this.email,
+      required this.orderIndex,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['vet_profile_id'] = Variable<String>(vetProfileId);
+    if (!nullToAbsent || logoPath != null) {
+      map['logo_path'] = Variable<String>(logoPath);
+    }
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || address != null) {
+      map['address'] = Variable<String>(address);
+    }
+    if (!nullToAbsent || phone != null) {
+      map['phone'] = Variable<String>(phone);
+    }
+    if (!nullToAbsent || email != null) {
+      map['email'] = Variable<String>(email);
+    }
+    map['order_index'] = Variable<int>(orderIndex);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  VetClinicsCompanion toCompanion(bool nullToAbsent) {
+    return VetClinicsCompanion(
+      id: Value(id),
+      vetProfileId: Value(vetProfileId),
+      logoPath: logoPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(logoPath),
+      name: Value(name),
+      address: address == null && nullToAbsent
+          ? const Value.absent()
+          : Value(address),
+      phone:
+          phone == null && nullToAbsent ? const Value.absent() : Value(phone),
+      email:
+          email == null && nullToAbsent ? const Value.absent() : Value(email),
+      orderIndex: Value(orderIndex),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory VetClinic.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return VetClinic(
+      id: serializer.fromJson<String>(json['id']),
+      vetProfileId: serializer.fromJson<String>(json['vetProfileId']),
+      logoPath: serializer.fromJson<String?>(json['logoPath']),
+      name: serializer.fromJson<String>(json['name']),
+      address: serializer.fromJson<String?>(json['address']),
+      phone: serializer.fromJson<String?>(json['phone']),
+      email: serializer.fromJson<String?>(json['email']),
+      orderIndex: serializer.fromJson<int>(json['orderIndex']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'vetProfileId': serializer.toJson<String>(vetProfileId),
+      'logoPath': serializer.toJson<String?>(logoPath),
+      'name': serializer.toJson<String>(name),
+      'address': serializer.toJson<String?>(address),
+      'phone': serializer.toJson<String?>(phone),
+      'email': serializer.toJson<String?>(email),
+      'orderIndex': serializer.toJson<int>(orderIndex),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  VetClinic copyWith(
+          {String? id,
+          String? vetProfileId,
+          Value<String?> logoPath = const Value.absent(),
+          String? name,
+          Value<String?> address = const Value.absent(),
+          Value<String?> phone = const Value.absent(),
+          Value<String?> email = const Value.absent(),
+          int? orderIndex,
+          int? createdAt,
+          int? updatedAt}) =>
+      VetClinic(
+        id: id ?? this.id,
+        vetProfileId: vetProfileId ?? this.vetProfileId,
+        logoPath: logoPath.present ? logoPath.value : this.logoPath,
+        name: name ?? this.name,
+        address: address.present ? address.value : this.address,
+        phone: phone.present ? phone.value : this.phone,
+        email: email.present ? email.value : this.email,
+        orderIndex: orderIndex ?? this.orderIndex,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  VetClinic copyWithCompanion(VetClinicsCompanion data) {
+    return VetClinic(
+      id: data.id.present ? data.id.value : this.id,
+      vetProfileId: data.vetProfileId.present
+          ? data.vetProfileId.value
+          : this.vetProfileId,
+      logoPath: data.logoPath.present ? data.logoPath.value : this.logoPath,
+      name: data.name.present ? data.name.value : this.name,
+      address: data.address.present ? data.address.value : this.address,
+      phone: data.phone.present ? data.phone.value : this.phone,
+      email: data.email.present ? data.email.value : this.email,
+      orderIndex:
+          data.orderIndex.present ? data.orderIndex.value : this.orderIndex,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VetClinic(')
+          ..write('id: $id, ')
+          ..write('vetProfileId: $vetProfileId, ')
+          ..write('logoPath: $logoPath, ')
+          ..write('name: $name, ')
+          ..write('address: $address, ')
+          ..write('phone: $phone, ')
+          ..write('email: $email, ')
+          ..write('orderIndex: $orderIndex, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, vetProfileId, logoPath, name, address,
+      phone, email, orderIndex, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is VetClinic &&
+          other.id == this.id &&
+          other.vetProfileId == this.vetProfileId &&
+          other.logoPath == this.logoPath &&
+          other.name == this.name &&
+          other.address == this.address &&
+          other.phone == this.phone &&
+          other.email == this.email &&
+          other.orderIndex == this.orderIndex &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class VetClinicsCompanion extends UpdateCompanion<VetClinic> {
+  final Value<String> id;
+  final Value<String> vetProfileId;
+  final Value<String?> logoPath;
+  final Value<String> name;
+  final Value<String?> address;
+  final Value<String?> phone;
+  final Value<String?> email;
+  final Value<int> orderIndex;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const VetClinicsCompanion({
+    this.id = const Value.absent(),
+    this.vetProfileId = const Value.absent(),
+    this.logoPath = const Value.absent(),
+    this.name = const Value.absent(),
+    this.address = const Value.absent(),
+    this.phone = const Value.absent(),
+    this.email = const Value.absent(),
+    this.orderIndex = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  VetClinicsCompanion.insert({
+    required String id,
+    required String vetProfileId,
+    this.logoPath = const Value.absent(),
+    required String name,
+    this.address = const Value.absent(),
+    this.phone = const Value.absent(),
+    this.email = const Value.absent(),
+    this.orderIndex = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        vetProfileId = Value(vetProfileId),
+        name = Value(name),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<VetClinic> custom({
+    Expression<String>? id,
+    Expression<String>? vetProfileId,
+    Expression<String>? logoPath,
+    Expression<String>? name,
+    Expression<String>? address,
+    Expression<String>? phone,
+    Expression<String>? email,
+    Expression<int>? orderIndex,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (vetProfileId != null) 'vet_profile_id': vetProfileId,
+      if (logoPath != null) 'logo_path': logoPath,
+      if (name != null) 'name': name,
+      if (address != null) 'address': address,
+      if (phone != null) 'phone': phone,
+      if (email != null) 'email': email,
+      if (orderIndex != null) 'order_index': orderIndex,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  VetClinicsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? vetProfileId,
+      Value<String?>? logoPath,
+      Value<String>? name,
+      Value<String?>? address,
+      Value<String?>? phone,
+      Value<String?>? email,
+      Value<int>? orderIndex,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return VetClinicsCompanion(
+      id: id ?? this.id,
+      vetProfileId: vetProfileId ?? this.vetProfileId,
+      logoPath: logoPath ?? this.logoPath,
+      name: name ?? this.name,
+      address: address ?? this.address,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
+      orderIndex: orderIndex ?? this.orderIndex,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (vetProfileId.present) {
+      map['vet_profile_id'] = Variable<String>(vetProfileId.value);
+    }
+    if (logoPath.present) {
+      map['logo_path'] = Variable<String>(logoPath.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (address.present) {
+      map['address'] = Variable<String>(address.value);
+    }
+    if (phone.present) {
+      map['phone'] = Variable<String>(phone.value);
+    }
+    if (email.present) {
+      map['email'] = Variable<String>(email.value);
+    }
+    if (orderIndex.present) {
+      map['order_index'] = Variable<int>(orderIndex.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VetClinicsCompanion(')
+          ..write('id: $id, ')
+          ..write('vetProfileId: $vetProfileId, ')
+          ..write('logoPath: $logoPath, ')
+          ..write('name: $name, ')
+          ..write('address: $address, ')
+          ..write('phone: $phone, ')
+          ..write('email: $email, ')
+          ..write('orderIndex: $orderIndex, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2658,12 +3651,21 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ReferencesTable references = $ReferencesTable(this);
   late final $ExaminationPhotosTable examinationPhotos =
       $ExaminationPhotosTable(this);
+  late final $VetProfilesTable vetProfiles = $VetProfilesTable(this);
+  late final $VetClinicsTable vetClinics = $VetClinicsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [patients, examinations, templates, references, examinationPhotos];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+        patients,
+        examinations,
+        templates,
+        references,
+        examinationPhotos,
+        vetProfiles,
+        vetClinics
+      ];
 }
 
 typedef $$PatientsTableCreateCompanionBuilder = PatientsCompanion Function({
@@ -2968,6 +3970,7 @@ typedef $$ExaminationsTableCreateCompanionBuilder = ExaminationsCompanion
   required String validationStatus,
   Value<String?> warnings,
   Value<String?> pdfPath,
+  Value<String?> vetClinicId,
   required int createdAt,
   required int updatedAt,
   Value<int> rowid,
@@ -2989,6 +3992,7 @@ typedef $$ExaminationsTableUpdateCompanionBuilder = ExaminationsCompanion
   Value<String> validationStatus,
   Value<String?> warnings,
   Value<String?> pdfPath,
+  Value<String?> vetClinicId,
   Value<int> createdAt,
   Value<int> updatedAt,
   Value<int> rowid,
@@ -3054,6 +4058,9 @@ class $$ExaminationsTableFilterComposer
 
   ColumnFilters<String> get pdfPath => $composableBuilder(
       column: $table.pdfPath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get vetClinicId => $composableBuilder(
+      column: $table.vetClinicId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -3124,6 +4131,9 @@ class $$ExaminationsTableOrderingComposer
   ColumnOrderings<String> get pdfPath => $composableBuilder(
       column: $table.pdfPath, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get vetClinicId => $composableBuilder(
+      column: $table.vetClinicId, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -3185,6 +4195,9 @@ class $$ExaminationsTableAnnotationComposer
   GeneratedColumn<String> get pdfPath =>
       $composableBuilder(column: $table.pdfPath, builder: (column) => column);
 
+  GeneratedColumn<String> get vetClinicId => $composableBuilder(
+      column: $table.vetClinicId, builder: (column) => column);
+
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -3233,6 +4246,7 @@ class $$ExaminationsTableTableManager extends RootTableManager<
             Value<String> validationStatus = const Value.absent(),
             Value<String?> warnings = const Value.absent(),
             Value<String?> pdfPath = const Value.absent(),
+            Value<String?> vetClinicId = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<int> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -3253,6 +4267,7 @@ class $$ExaminationsTableTableManager extends RootTableManager<
             validationStatus: validationStatus,
             warnings: warnings,
             pdfPath: pdfPath,
+            vetClinicId: vetClinicId,
             createdAt: createdAt,
             updatedAt: updatedAt,
             rowid: rowid,
@@ -3273,6 +4288,7 @@ class $$ExaminationsTableTableManager extends RootTableManager<
             required String validationStatus,
             Value<String?> warnings = const Value.absent(),
             Value<String?> pdfPath = const Value.absent(),
+            Value<String?> vetClinicId = const Value.absent(),
             required int createdAt,
             required int updatedAt,
             Value<int> rowid = const Value.absent(),
@@ -3293,6 +4309,7 @@ class $$ExaminationsTableTableManager extends RootTableManager<
             validationStatus: validationStatus,
             warnings: warnings,
             pdfPath: pdfPath,
+            vetClinicId: vetClinicId,
             createdAt: createdAt,
             updatedAt: updatedAt,
             rowid: rowid,
@@ -3915,6 +4932,656 @@ typedef $$ExaminationPhotosTableProcessedTableManager = ProcessedTableManager<
     ),
     ExaminationPhoto,
     PrefetchHooks Function()>;
+typedef $$VetProfilesTableCreateCompanionBuilder = VetProfilesCompanion
+    Function({
+  required String id,
+  required String lastName,
+  required String firstName,
+  Value<String?> patronymic,
+  Value<String?> specialization,
+  Value<String?> note,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$VetProfilesTableUpdateCompanionBuilder = VetProfilesCompanion
+    Function({
+  Value<String> id,
+  Value<String> lastName,
+  Value<String> firstName,
+  Value<String?> patronymic,
+  Value<String?> specialization,
+  Value<String?> note,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+final class $$VetProfilesTableReferences
+    extends BaseReferences<_$AppDatabase, $VetProfilesTable, VetProfile> {
+  $$VetProfilesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$VetClinicsTable, List<VetClinic>>
+      _vetClinicsRefsTable(_$AppDatabase db) =>
+          MultiTypedResultKey.fromTable(db.vetClinics,
+              aliasName: $_aliasNameGenerator(
+                  db.vetProfiles.id, db.vetClinics.vetProfileId));
+
+  $$VetClinicsTableProcessedTableManager get vetClinicsRefs {
+    final manager = $$VetClinicsTableTableManager($_db, $_db.vetClinics).filter(
+        (f) => f.vetProfileId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_vetClinicsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
+class $$VetProfilesTableFilterComposer
+    extends Composer<_$AppDatabase, $VetProfilesTable> {
+  $$VetProfilesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get lastName => $composableBuilder(
+      column: $table.lastName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get firstName => $composableBuilder(
+      column: $table.firstName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get patronymic => $composableBuilder(
+      column: $table.patronymic, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get specialization => $composableBuilder(
+      column: $table.specialization,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get note => $composableBuilder(
+      column: $table.note, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  Expression<bool> vetClinicsRefs(
+      Expression<bool> Function($$VetClinicsTableFilterComposer f) f) {
+    final $$VetClinicsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.vetClinics,
+        getReferencedColumn: (t) => t.vetProfileId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$VetClinicsTableFilterComposer(
+              $db: $db,
+              $table: $db.vetClinics,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+}
+
+class $$VetProfilesTableOrderingComposer
+    extends Composer<_$AppDatabase, $VetProfilesTable> {
+  $$VetProfilesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get lastName => $composableBuilder(
+      column: $table.lastName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get firstName => $composableBuilder(
+      column: $table.firstName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get patronymic => $composableBuilder(
+      column: $table.patronymic, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get specialization => $composableBuilder(
+      column: $table.specialization,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get note => $composableBuilder(
+      column: $table.note, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$VetProfilesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $VetProfilesTable> {
+  $$VetProfilesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get lastName =>
+      $composableBuilder(column: $table.lastName, builder: (column) => column);
+
+  GeneratedColumn<String> get firstName =>
+      $composableBuilder(column: $table.firstName, builder: (column) => column);
+
+  GeneratedColumn<String> get patronymic => $composableBuilder(
+      column: $table.patronymic, builder: (column) => column);
+
+  GeneratedColumn<String> get specialization => $composableBuilder(
+      column: $table.specialization, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  Expression<T> vetClinicsRefs<T extends Object>(
+      Expression<T> Function($$VetClinicsTableAnnotationComposer a) f) {
+    final $$VetClinicsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.vetClinics,
+        getReferencedColumn: (t) => t.vetProfileId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$VetClinicsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.vetClinics,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+}
+
+class $$VetProfilesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $VetProfilesTable,
+    VetProfile,
+    $$VetProfilesTableFilterComposer,
+    $$VetProfilesTableOrderingComposer,
+    $$VetProfilesTableAnnotationComposer,
+    $$VetProfilesTableCreateCompanionBuilder,
+    $$VetProfilesTableUpdateCompanionBuilder,
+    (VetProfile, $$VetProfilesTableReferences),
+    VetProfile,
+    PrefetchHooks Function({bool vetClinicsRefs})> {
+  $$VetProfilesTableTableManager(_$AppDatabase db, $VetProfilesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$VetProfilesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$VetProfilesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$VetProfilesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> lastName = const Value.absent(),
+            Value<String> firstName = const Value.absent(),
+            Value<String?> patronymic = const Value.absent(),
+            Value<String?> specialization = const Value.absent(),
+            Value<String?> note = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              VetProfilesCompanion(
+            id: id,
+            lastName: lastName,
+            firstName: firstName,
+            patronymic: patronymic,
+            specialization: specialization,
+            note: note,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String lastName,
+            required String firstName,
+            Value<String?> patronymic = const Value.absent(),
+            Value<String?> specialization = const Value.absent(),
+            Value<String?> note = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              VetProfilesCompanion.insert(
+            id: id,
+            lastName: lastName,
+            firstName: firstName,
+            patronymic: patronymic,
+            specialization: specialization,
+            note: note,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$VetProfilesTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({vetClinicsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (vetClinicsRefs) db.vetClinics],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (vetClinicsRefs)
+                    await $_getPrefetchedData<VetProfile, $VetProfilesTable,
+                            VetClinic>(
+                        currentTable: table,
+                        referencedTable: $$VetProfilesTableReferences
+                            ._vetClinicsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$VetProfilesTableReferences(db, table, p0)
+                                .vetClinicsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.vetProfileId == item.id),
+                        typedResults: items)
+                ];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$VetProfilesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $VetProfilesTable,
+    VetProfile,
+    $$VetProfilesTableFilterComposer,
+    $$VetProfilesTableOrderingComposer,
+    $$VetProfilesTableAnnotationComposer,
+    $$VetProfilesTableCreateCompanionBuilder,
+    $$VetProfilesTableUpdateCompanionBuilder,
+    (VetProfile, $$VetProfilesTableReferences),
+    VetProfile,
+    PrefetchHooks Function({bool vetClinicsRefs})>;
+typedef $$VetClinicsTableCreateCompanionBuilder = VetClinicsCompanion Function({
+  required String id,
+  required String vetProfileId,
+  Value<String?> logoPath,
+  required String name,
+  Value<String?> address,
+  Value<String?> phone,
+  Value<String?> email,
+  Value<int> orderIndex,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$VetClinicsTableUpdateCompanionBuilder = VetClinicsCompanion Function({
+  Value<String> id,
+  Value<String> vetProfileId,
+  Value<String?> logoPath,
+  Value<String> name,
+  Value<String?> address,
+  Value<String?> phone,
+  Value<String?> email,
+  Value<int> orderIndex,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+final class $$VetClinicsTableReferences
+    extends BaseReferences<_$AppDatabase, $VetClinicsTable, VetClinic> {
+  $$VetClinicsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $VetProfilesTable _vetProfileIdTable(_$AppDatabase db) =>
+      db.vetProfiles.createAlias(
+          $_aliasNameGenerator(db.vetClinics.vetProfileId, db.vetProfiles.id));
+
+  $$VetProfilesTableProcessedTableManager get vetProfileId {
+    final $_column = $_itemColumn<String>('vet_profile_id')!;
+
+    final manager = $$VetProfilesTableTableManager($_db, $_db.vetProfiles)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_vetProfileIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$VetClinicsTableFilterComposer
+    extends Composer<_$AppDatabase, $VetClinicsTable> {
+  $$VetClinicsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get logoPath => $composableBuilder(
+      column: $table.logoPath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get address => $composableBuilder(
+      column: $table.address, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get phone => $composableBuilder(
+      column: $table.phone, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get email => $composableBuilder(
+      column: $table.email, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get orderIndex => $composableBuilder(
+      column: $table.orderIndex, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  $$VetProfilesTableFilterComposer get vetProfileId {
+    final $$VetProfilesTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.vetProfileId,
+        referencedTable: $db.vetProfiles,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$VetProfilesTableFilterComposer(
+              $db: $db,
+              $table: $db.vetProfiles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$VetClinicsTableOrderingComposer
+    extends Composer<_$AppDatabase, $VetClinicsTable> {
+  $$VetClinicsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get logoPath => $composableBuilder(
+      column: $table.logoPath, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get address => $composableBuilder(
+      column: $table.address, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get phone => $composableBuilder(
+      column: $table.phone, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get email => $composableBuilder(
+      column: $table.email, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get orderIndex => $composableBuilder(
+      column: $table.orderIndex, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  $$VetProfilesTableOrderingComposer get vetProfileId {
+    final $$VetProfilesTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.vetProfileId,
+        referencedTable: $db.vetProfiles,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$VetProfilesTableOrderingComposer(
+              $db: $db,
+              $table: $db.vetProfiles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$VetClinicsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $VetClinicsTable> {
+  $$VetClinicsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get logoPath =>
+      $composableBuilder(column: $table.logoPath, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get address =>
+      $composableBuilder(column: $table.address, builder: (column) => column);
+
+  GeneratedColumn<String> get phone =>
+      $composableBuilder(column: $table.phone, builder: (column) => column);
+
+  GeneratedColumn<String> get email =>
+      $composableBuilder(column: $table.email, builder: (column) => column);
+
+  GeneratedColumn<int> get orderIndex => $composableBuilder(
+      column: $table.orderIndex, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$VetProfilesTableAnnotationComposer get vetProfileId {
+    final $$VetProfilesTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.vetProfileId,
+        referencedTable: $db.vetProfiles,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$VetProfilesTableAnnotationComposer(
+              $db: $db,
+              $table: $db.vetProfiles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$VetClinicsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $VetClinicsTable,
+    VetClinic,
+    $$VetClinicsTableFilterComposer,
+    $$VetClinicsTableOrderingComposer,
+    $$VetClinicsTableAnnotationComposer,
+    $$VetClinicsTableCreateCompanionBuilder,
+    $$VetClinicsTableUpdateCompanionBuilder,
+    (VetClinic, $$VetClinicsTableReferences),
+    VetClinic,
+    PrefetchHooks Function({bool vetProfileId})> {
+  $$VetClinicsTableTableManager(_$AppDatabase db, $VetClinicsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$VetClinicsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$VetClinicsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$VetClinicsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> vetProfileId = const Value.absent(),
+            Value<String?> logoPath = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String?> address = const Value.absent(),
+            Value<String?> phone = const Value.absent(),
+            Value<String?> email = const Value.absent(),
+            Value<int> orderIndex = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              VetClinicsCompanion(
+            id: id,
+            vetProfileId: vetProfileId,
+            logoPath: logoPath,
+            name: name,
+            address: address,
+            phone: phone,
+            email: email,
+            orderIndex: orderIndex,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String vetProfileId,
+            Value<String?> logoPath = const Value.absent(),
+            required String name,
+            Value<String?> address = const Value.absent(),
+            Value<String?> phone = const Value.absent(),
+            Value<String?> email = const Value.absent(),
+            Value<int> orderIndex = const Value.absent(),
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              VetClinicsCompanion.insert(
+            id: id,
+            vetProfileId: vetProfileId,
+            logoPath: logoPath,
+            name: name,
+            address: address,
+            phone: phone,
+            email: email,
+            orderIndex: orderIndex,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$VetClinicsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({vetProfileId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (vetProfileId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.vetProfileId,
+                    referencedTable:
+                        $$VetClinicsTableReferences._vetProfileIdTable(db),
+                    referencedColumn:
+                        $$VetClinicsTableReferences._vetProfileIdTable(db).id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$VetClinicsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $VetClinicsTable,
+    VetClinic,
+    $$VetClinicsTableFilterComposer,
+    $$VetClinicsTableOrderingComposer,
+    $$VetClinicsTableAnnotationComposer,
+    $$VetClinicsTableCreateCompanionBuilder,
+    $$VetClinicsTableUpdateCompanionBuilder,
+    (VetClinic, $$VetClinicsTableReferences),
+    VetClinic,
+    PrefetchHooks Function({bool vetProfileId})>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3929,4 +5596,8 @@ class $AppDatabaseManager {
       $$ReferencesTableTableManager(_db, _db.references);
   $$ExaminationPhotosTableTableManager get examinationPhotos =>
       $$ExaminationPhotosTableTableManager(_db, _db.examinationPhotos);
+  $$VetProfilesTableTableManager get vetProfiles =>
+      $$VetProfilesTableTableManager(_db, _db.vetProfiles);
+  $$VetClinicsTableTableManager get vetClinics =>
+      $$VetClinicsTableTableManager(_db, _db.vetClinics);
 }

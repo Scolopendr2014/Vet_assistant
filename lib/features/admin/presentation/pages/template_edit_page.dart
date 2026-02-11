@@ -168,28 +168,64 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             )
-          else ...[
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              tooltip: 'Создать новую версию',
-              onPressed: _createNewVersion,
+          else
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.menu),
+              tooltip: 'Меню',
+              onSelected: (value) {
+                if (value == 'new_version') {
+                  _createNewVersion();
+                } else if (value == 'export') {
+                  _exportTemplate();
+                } else if (value == 'import') {
+                  _importTemplate();
+                } else if (value == 'save') {
+                  _save();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'new_version',
+                  child: Row(
+                    children: [
+                      Icon(Icons.add_circle_outline, size: 20),
+                      SizedBox(width: 8),
+                      Text('Создать новую версию'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'export',
+                  child: Row(
+                    children: [
+                      Icon(Icons.file_download_outlined, size: 20),
+                      SizedBox(width: 8),
+                      Text('Экспорт шаблона'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'import',
+                  child: Row(
+                    children: [
+                      Icon(Icons.file_upload_outlined, size: 20),
+                      SizedBox(width: 8),
+                      Text('Импорт шаблона'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'save',
+                  child: Row(
+                    children: [
+                      Icon(Icons.save, size: 20),
+                      SizedBox(width: 8),
+                      Text('Сохранить'),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.file_download_outlined),
-              tooltip: 'Экспорт шаблона',
-              onPressed: _exportTemplate,
-            ),
-            IconButton(
-              icon: const Icon(Icons.file_upload_outlined),
-              tooltip: 'Импорт шаблона',
-              onPressed: _importTemplate,
-            ),
-            IconButton(
-              icon: const Icon(Icons.save),
-              tooltip: 'Сохранить',
-              onPressed: _save,
-            ),
-          ],
         ],
       ),
       body: templateAsync.when(
@@ -354,6 +390,11 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
                       ),
                     );
                   }),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _save,
+                  child: const Text('Сохранить'),
+                ),
               ],
             ),
           );
@@ -1274,11 +1315,11 @@ class _SectionEditPageState extends State<_SectionEditPage> {
           tooltip: 'Отмена',
         ),
         actions: [
-          FilledButton(
+          IconButton(
+            icon: const Icon(Icons.save),
             onPressed: _saveAndPop,
-            child: const Text('Сохранить'),
+            tooltip: 'Сохранить',
           ),
-          const SizedBox(width: 16),
         ],
       ),
       body: SingleChildScrollView(
@@ -1500,6 +1541,11 @@ class _SectionEditPageState extends State<_SectionEditPage> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _saveAndPop,
+                child: const Text('Сохранить'),
               ),
             ],
           ),

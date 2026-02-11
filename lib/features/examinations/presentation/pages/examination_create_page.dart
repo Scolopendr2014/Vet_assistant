@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -21,6 +22,9 @@ import '../../../speech/domain/services/stt_router.dart';
 import '../../../speech/services/stt_extraction_service.dart';
 import '../../../templates/presentation/widgets/template_form_builder.dart';
 import '../../../patients/presentation/providers/patient_providers.dart';
+import '../../../vet_profile/domain/repositories/vet_clinic_repository.dart';
+import '../../../vet_profile/domain/repositories/vet_profile_repository.dart';
+import '../../../vet_profile/presentation/providers/vet_profile_providers.dart';
 import '../../utils/template_icons.dart';
 import '../providers/examination_providers.dart';
 
@@ -57,6 +61,8 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
   /// При редактировании: загруженный протокол (для сохранения id, дат, фото).
   Examination? _existingExam;
   bool _initializedForEdit = false;
+  /// VET-145: выбранная клиника при редактировании (null — без клиники).
+  String? _selectedClinicId;
 
   @override
   void dispose() {
@@ -79,6 +85,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     );
     _audioPaths.clear();
     _audioPaths.addAll(exam.audioFilePaths);
+    _selectedClinicId = exam.vetClinicId;
     _initializedForEdit = true;
     setState(() {});
   }
@@ -138,6 +145,57 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     );
   }
 
+  /// VET-145: выбор активной клиники при редактировании протокола.
+  Widget _buildClinicSelector(BuildContext context) {
+    final profileAsync = ref.watch(vetProfileProvider);
+    return profileAsync.when(
+      data: (profile) {
+        if (profile == null) return const SizedBox.shrink();
+        final clinicsAsync = ref.watch(vetClinicsByProfileProvider(profile.id));
+        return clinicsAsync.when(
+          data: (clinics) {
+            if (clinics.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Клиника',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String?>(
+                    key: ValueKey(_selectedClinicId),
+                    initialValue: _selectedClinicId,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                    hint: const Text('Без клиники'),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('Без клиники')),
+                      ...clinics.map((c) => DropdownMenuItem<String?>(
+                            value: c.id,
+                            child: Text(c.name),
+                          )),
+                    ],
+                    onChanged: (v) => setState(() => _selectedClinicId = v),
+                  ),
+                ],
+              ),
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
   /// VET-049: скроллится весь протокол кроме поля «Пациент».
   Widget _buildForm(
     BuildContext context,
@@ -191,6 +249,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
+        if (isEditMode) _buildClinicSelector(context),
         Expanded(
           child: SingleChildScrollView(
             padding: EdgeInsets.only(
@@ -422,6 +481,13 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                 });
               },
               scrollable: false,
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 24),
+              child: FilledButton(
+                onPressed: _saveExamination,
+                child: const Text('Сохранить'),
+              ),
             ),
           ] else
             const Padding(
@@ -672,6 +738,25 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
           );
         }(),
     ];
+    String? vetClinicId;
+    if (isEditMode) {
+      vetClinicId = _selectedClinicId ?? _existingExam!.vetClinicId;
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      final clinicId = prefs.getString('vet_current_clinic_id');
+      if (clinicId != null) {
+        final clinic = await getIt<VetClinicRepository>().getById(clinicId);
+        if (clinic != null) vetClinicId = clinic.id;
+      }
+      if (vetClinicId == null) {
+        final profile = await getIt<VetProfileRepository>().get();
+        if (profile != null) {
+          final clinics = await getIt<VetClinicRepository>().getByProfileId(profile.id);
+          if (clinics.length == 1) vetClinicId = clinics.first.id;
+        }
+      }
+    }
+
     final examination = Examination(
       id: examinationId,
       patientId: effectivePatientId,
@@ -690,6 +775,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
       validationStatus: 'valid',
       warnings: const [],
       pdfPath: isEditMode ? _existingExam!.pdfPath : null,
+      vetClinicId: vetClinicId,
       createdAt: isEditMode ? _existingExam!.createdAt : now,
       updatedAt: now,
       photos: photos,
