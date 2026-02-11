@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -177,6 +178,11 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
               icon: const Icon(Icons.file_download_outlined),
               tooltip: 'Экспорт шаблона',
               onPressed: _exportTemplate,
+            ),
+            IconButton(
+              icon: const Icon(Icons.file_upload_outlined),
+              tooltip: 'Импорт шаблона',
+              onPressed: _importTemplate,
             ),
             IconButton(
               icon: const Icon(Icons.save),
@@ -441,6 +447,141 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Ошибка экспорта: $e')),
+        );
+      }
+    }
+  }
+
+  /// Импорт шаблона из JSON (VET-093). При совпадении ID+версия — добавить новую версию или обновить существующую.
+  Future<void> _importTemplate() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      withData: false,
+      withReadStream: false,
+    );
+    if (result == null || result.files.isEmpty || !mounted) return;
+    final path = result.files.single.path;
+    if (path == null || path.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось получить путь к файлу')),
+        );
+      }
+      return;
+    }
+    String? content;
+    try {
+      content = await File(path).readAsString();
+    } catch (_) {
+      content = null;
+    }
+    if (content == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось прочитать файл')),
+        );
+      }
+      return;
+    }
+    Map<String, dynamic>? map;
+    try {
+      final decoded = jsonDecode(content);
+      if (decoded is! Map<String, dynamic>) throw const FormatException('Не объект JSON');
+      map = decoded;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Файл не является валидным JSON шаблона')),
+        );
+      }
+      return;
+    }
+    if (map['id'] == null || map['title'] == null || map['sections'] == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('В файле отсутствуют обязательные поля: id, title, sections')),
+        );
+      }
+      return;
+    }
+    ProtocolTemplate template;
+    try {
+      template = ProtocolTemplate.fromJson(map);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка разбора шаблона: $e')),
+        );
+      }
+      return;
+    }
+    final repo = getIt<TemplateRepository>();
+    final rowId = '${template.id}_${template.version}';
+    final existing = await repo.getByTemplateRowId(rowId);
+    if (existing != null && mounted) {
+      final existingList = await repo.getVersionsByType(template.id);
+      if (!mounted) return;
+      final existingVersions = existingList.map((t) => t.version).toSet();
+      String suggestedNewVersion = nextVersion(template.version);
+      while (existingVersions.contains(suggestedNewVersion)) {
+        suggestedNewVersion = nextVersion(suggestedNewVersion);
+      }
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Шаблон уже существует'),
+          content: Text(
+            'Шаблон «${template.title}» с ID ${template.id} и версией ${template.version} уже есть в системе.\n\n'
+            'Добавить как новую версию (будет создана версия $suggestedNewVersion) или обновить существующую?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'update'),
+              child: const Text('Обновить существующую'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, 'new_version'),
+              child: const Text('Добавить новую версию'),
+            ),
+          ],
+        ),
+      );
+      if (choice == null || !mounted) return;
+      if (choice == 'new_version') {
+        template = ProtocolTemplate(
+          id: template.id,
+          version: suggestedNewVersion,
+          locale: template.locale,
+          title: template.title,
+          description: template.description,
+          sections: template.sections,
+          headerPrintSettings: template.headerPrintSettings,
+          anamnesisPrintSettings: template.anamnesisPrintSettings,
+          photosPrintSettings: template.photosPrintSettings,
+        );
+      }
+    }
+    try {
+      await repo.saveTemplate(template);
+      if (!mounted) return;
+      ref.invalidate(templateListProvider);
+      ref.invalidate(templateByIdProvider(template.id));
+      ref.invalidate(templateByRowIdProvider('${template.id}_${template.version}'));
+      ref.invalidate(versionRowsByTypeProvider(template.id));
+      ref.invalidate(activeTemplateListProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Шаблон «${template.title}» v${template.version} импортирован')),
+      );
+      context.go('/admin/dashboard/templates/${template.id}_${template.version}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка импорта: $e')),
         );
       }
     }
