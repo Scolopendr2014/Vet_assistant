@@ -32,7 +32,7 @@ void main() {
       title: 'Тест',
       description: null,
       sections: sections ??
-          [
+          const [
             TemplateSection(
               id: 's1',
               title: 'Раздел 1',
@@ -47,7 +47,7 @@ void main() {
 
   group('saveTemplate', () {
     test('обновляет существующую запись по rowId (id_version)', () async {
-      final t0 = template(sections: [
+      final t0 = template(sections: const [
         TemplateSection(id: 'old', title: 'Старый', order: 1, fields: []),
       ]);
       final rowId = '${t0.id}_${t0.version}';
@@ -62,7 +62,7 @@ void main() {
             updatedAt: now,
           ));
 
-      final t1 = template(sections: [
+      final t1 = template(sections: const [
         TemplateSection(id: 'new', title: 'Новый раздел', order: 1, fields: []),
       ]);
       await repo.saveTemplate(t1);
@@ -168,8 +168,9 @@ void main() {
 
   group('loadFromAssets', () {
     test('не перезаписывает БД, если для типа уже есть записи (VET-075)', () async {
-      const customContent = '{"id":"cardio","version":"1.0.0","locale":"ru","title":"Свой шаблон","sections":[{"id":"my","title":"Мой раздел","order":1,"fields":[]}]}';
-      final rowId = 'cardio_1.0.0';
+      const customContent =
+          '{"id":"cardio","version":"1.0.0","locale":"ru","title":"Свой шаблон","sections":[{"id":"my","title":"Мой раздел","order":1,"fields":[]}]}';
+      const rowId = 'cardio_1.0.0';
       final now = DateTime.now().millisecondsSinceEpoch;
       await db.into(db.templates).insert(TemplatesCompanion.insert(
             id: rowId,

@@ -94,6 +94,11 @@ class ExaminationPhotos extends Table {
 @DriftDatabase(tables: [Patients, Examinations, Templates, References, ExaminationPhotos])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
+
+  /// In-memory БД для юнит-тестов (например, TemplateRepositoryImpl).
+  factory AppDatabase.forTest() => AppDatabase._(NativeDatabase.memory());
+
+  AppDatabase._(super.e);
   
   @override
   int get schemaVersion => AppConfig.dbVersion;

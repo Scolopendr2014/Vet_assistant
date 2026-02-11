@@ -193,6 +193,9 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
           ),
         Expanded(
           child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).padding.bottom + 24,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -255,7 +258,8 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                   hintText: 'Голосом или вручную',
                   border: OutlineInputBorder(),
                 ),
-                maxLines: 3,
+                minLines: 1,
+                maxLines: null,
               ),
             ),
             Padding(
@@ -844,7 +848,8 @@ class _PhotoChip extends StatelessWidget {
                   contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   border: OutlineInputBorder(),
                 ),
-                maxLines: 1,
+                minLines: 1,
+                maxLines: null,
                 style: const TextStyle(fontSize: 12),
               ),
             ),

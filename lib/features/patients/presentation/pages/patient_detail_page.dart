@@ -89,8 +89,11 @@ class PatientDetailPage extends ConsumerWidget {
                       return const Center(child: Text('Нет протоколов'));
                     }
                     return ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16)
-                          .copyWith(bottom: 16),
+                      padding: EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                        bottom: MediaQuery.of(context).padding.bottom + 24,
+                      ),
                       itemCount: list.length,
                       itemBuilder: (context, index) {
                         final e = list[index];

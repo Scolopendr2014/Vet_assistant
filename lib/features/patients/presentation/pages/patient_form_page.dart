@@ -105,7 +105,12 @@ class _PatientFormPageState extends ConsumerState<PatientFormPage> {
             return Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(context).padding.bottom + 24,
+              ),
               children: [
                 TextFormField(
                   controller: _speciesController,

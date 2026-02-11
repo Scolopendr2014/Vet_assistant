@@ -227,6 +227,9 @@ class _PatientsList extends StatelessWidget {
       );
     }
     return ListView.builder(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).padding.bottom + 24,
+      ),
       itemCount: patients.length,
       itemBuilder: (context, i) {
         final p = patients[i];

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/database/app_database.dart' show Reference;
+import '../../../../core/di/di_container.dart';
+import '../../../references/domain/reference_repository.dart';
 import '../../domain/entities/protocol_template.dart';
 
-/// Строит форму по шаблону протокола (ТЗ 4.2.3).
+/// Строит форму по шаблону протокола (ТЗ 4.2.3, VET-066).
 class TemplateFormBuilder extends StatelessWidget {
   const TemplateFormBuilder({
     super.key,
@@ -93,6 +96,63 @@ class TemplateFormBuilder extends StatelessWidget {
             onChanged: (v) => onChanged(field.key, v),
           ),
         );
+      case 'reference': {
+        final refType = field.validation != null
+            ? field.validation!['referenceType'] as String?
+            : null;
+        if (refType == null) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text('Справочник не выбран', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: FutureBuilder<List<Reference>>(
+            future: getIt<ReferenceRepository>().getByType(refType),
+            builder: (context, snap) {
+              final refs = snap.data ?? <Reference>[];
+              final options = refs.map((r) => r.label).toList();
+              return DropdownButtonFormField<String?>(
+                initialValue: value is String && options.contains(value) ? value : null,
+                decoration: InputDecoration(
+                  labelText: label + (field.required ? ' *' : ''),
+                  errorText: error,
+                  border: const OutlineInputBorder(),
+                ),
+                items: [
+                  if (!field.required)
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('— не выбрано —'),
+                    ),
+                  ...options.map(
+                    (o) => DropdownMenuItem<String?>(value: o, child: Text(o)),
+                  ),
+                ],
+                onChanged: (v) => onChanged(field.key, v),
+              );
+            },
+          ),
+        );
+      }
+      case 'range':
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: TextFormField(
+            initialValue: value?.toString(),
+            decoration: InputDecoration(
+              labelText: label + (field.required ? ' *' : ''),
+              errorText: error,
+              border: const OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            onChanged: (v) {
+              final n = int.tryParse(v) ?? double.tryParse(v);
+              onChanged(field.key, n ?? v);
+            },
+          ),
+        );
       case 'bool':
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -112,7 +172,8 @@ class TemplateFormBuilder extends StatelessWidget {
               errorText: error,
               border: const OutlineInputBorder(),
             ),
-            maxLines: field.type == 'text' ? 3 : 1,
+            minLines: 1,
+            maxLines: field.type == 'text' ? null : 1,
             onChanged: (v) => onChanged(field.key, v),
           ),
         );

@@ -9,7 +9,9 @@ void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
     await setupDependencies();
     await tester.pumpWidget(const ProviderScope(child: VetAssistantApp()));
-    await tester.pumpAndSettle();
+    // Не используем pumpAndSettle — в приложении могут быть таймеры/анимации, из-за которых кадры не перестают планироваться.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Пациенты'), findsOneWidget);
   });
 }

@@ -13,6 +13,7 @@ import '../../domain/repositories/examination_repository.dart';
 import '../../services/audio_playback_service.dart';
 import '../../utils/template_icons.dart';
 import '../../../templates/domain/entities/protocol_template.dart';
+import '../../../templates/domain/repositories/template_repository.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
 import '../providers/examination_providers.dart';
 
@@ -50,7 +51,12 @@ class ExaminationDetailPage extends ConsumerWidget {
           }
           final templateAsync = ref.watch(templateForExaminationProvider((type: exam.templateType, version: exam.templateVersion)));
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 24,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -273,10 +279,17 @@ class ExaminationDetailPage extends ConsumerWidget {
       patientOwner = patient.ownerName;
     }
     try {
+      // VET-068: передаём шаблон для вывода по разделам с настройками печати
+      ProtocolTemplate? template;
+      final templateRepo = getIt<TemplateRepository>();
+      final rowId = '${exam.templateType}_${exam.templateVersion}';
+      template = await templateRepo.getByTemplateRowId(rowId);
+      template ??= await templateRepo.getById(exam.templateType);
       final path = await ProtocolPdfService.generate(
         exam,
         patientName: patientName,
         patientOwner: patientOwner,
+        template: template,
       );
       await Share.shareXFiles([XFile(path)]);
     } catch (e) {

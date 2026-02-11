@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/di/di_container.dart';
 import '../../../templates/domain/entities/protocol_template.dart';
 import '../../../templates/domain/repositories/template_repository.dart';
+import '../widgets/print_layout_editor_page.dart';
 import '../../../templates/domain/utils/version_utils.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
 
@@ -28,6 +29,9 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   List<TemplateSection> _sections = [];
+  ProtocolHeaderPrintSettings? _headerPrintSettings;
+  AnamnesisPrintSettings? _anamnesisPrintSettings;
+  PhotosPrintSettings? _photosPrintSettings;
   bool _saving = false;
   bool _initialized = false;
 
@@ -45,6 +49,9 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     _descriptionController.text = template.description ?? '';
     _sections = List.from(template.sections);
     _sections.sort((a, b) => a.order.compareTo(b.order));
+    _headerPrintSettings = template.headerPrintSettings;
+    _anamnesisPrintSettings = template.anamnesisPrintSettings;
+    _photosPrintSettings = template.photosPrintSettings;
   }
 
   void _addSection() {
@@ -72,8 +79,8 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     setState(() {
       final a = _sections[index];
       final b = _sections[index - 1];
-      _sections[index - 1] = TemplateSection(id: a.id, title: a.title, order: b.order, fields: a.fields);
-      _sections[index] = TemplateSection(id: b.id, title: b.title, order: a.order, fields: b.fields);
+      _sections[index - 1] = TemplateSection(id: a.id, title: a.title, order: b.order, fields: a.fields, printSettings: a.printSettings);
+      _sections[index] = TemplateSection(id: b.id, title: b.title, order: a.order, fields: b.fields, printSettings: b.printSettings);
       _sections.sort((a, b) => a.order.compareTo(b.order));
     });
   }
@@ -83,8 +90,8 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     setState(() {
       final a = _sections[index];
       final b = _sections[index + 1];
-      _sections[index] = TemplateSection(id: b.id, title: b.title, order: a.order, fields: b.fields);
-      _sections[index + 1] = TemplateSection(id: a.id, title: a.title, order: b.order, fields: a.fields);
+      _sections[index] = TemplateSection(id: b.id, title: b.title, order: a.order, fields: b.fields, printSettings: b.printSettings);
+      _sections[index + 1] = TemplateSection(id: a.id, title: a.title, order: b.order, fields: a.fields, printSettings: a.printSettings);
       _sections.sort((a, b) => a.order.compareTo(b.order));
     });
   }
@@ -111,6 +118,7 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
           title: _sections[i].title,
           order: i + 1,
           fields: _sections[i].fields,
+          printSettings: _sections[i].printSettings,
         );
       }
     });
@@ -118,9 +126,11 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
 
   Future<void> _editSection(int index) async {
     final section = _sections[index];
-    final updated = await showDialog<TemplateSection>(
-      context: context,
-      builder: (ctx) => _SectionEditDialog(section: section),
+    final updated = await Navigator.of(context).push<TemplateSection>(
+      MaterialPageRoute(
+        builder: (ctx) => _SectionEditPage(section: section),
+        fullscreenDialog: true,
+      ),
     );
     if (updated != null && mounted) {
       setState(() {
@@ -129,6 +139,7 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
           title: updated.title,
           order: updated.order,
           fields: updated.fields,
+          printSettings: updated.printSettings,
         );
         _sections.sort((a, b) => a.order.compareTo(b.order));
       });
@@ -182,7 +193,12 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
           }
           _initFromTemplate(template);
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 24,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -208,6 +224,66 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
                   maxLines: 3,
                 ),
                 const SizedBox(height: 24),
+                // VET-104: иконки над надписью. VET-108: «Добавить раздел» справа от надписи.
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.view_agenda_outlined, size: 22),
+                      tooltip: 'Настройка шапки протокола',
+                      onPressed: () async {
+                        final updated = await showDialog<ProtocolHeaderPrintSettings>(
+                          context: context,
+                          builder: (ctx) => _HeaderPrintSettingsDialog(
+                            initial: _headerPrintSettings,
+                          ),
+                        );
+                        if (updated != null && mounted) {
+                          setState(() => _headerPrintSettings = updated);
+                        }
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.photo_library_outlined, size: 22),
+                      tooltip: 'Настройка раздела «Фотографии»',
+                      onPressed: () async {
+                        final updated = await showDialog<PhotosPrintSettings>(
+                          context: context,
+                          builder: (ctx) => _PhotosPrintSettingsDialog(
+                            initial: _photosPrintSettings,
+                          ),
+                        );
+                        if (updated != null && mounted) {
+                          setState(() => _photosPrintSettings = updated);
+                        }
+                      },
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.dashboard_customize, size: 22),
+                      tooltip: 'Расположение на странице',
+                      onPressed: () async {
+                        await Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (ctx) => PrintLayoutEditorPage(
+                              sections: _sections,
+                              headerPrintSettings: _headerPrintSettings,
+                              anamnesisPrintSettings: _anamnesisPrintSettings,
+                              photosPrintSettings: _photosPrintSettings,
+                              onSave: (result) {
+                                setState(() {
+                                  _sections = result.sections;
+                                  _headerPrintSettings = result.headerPrintSettings;
+                                  _anamnesisPrintSettings = result.anamnesisPrintSettings;
+                                  _photosPrintSettings = result.photosPrintSettings;
+                                });
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -299,6 +375,9 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
             ? template.description
             : _descriptionController.text.trim(),
         sections: _sections,
+        headerPrintSettings: _headerPrintSettings,
+        anamnesisPrintSettings: _anamnesisPrintSettings,
+        photosPrintSettings: _photosPrintSettings,
       );
       await getIt<TemplateRepository>().saveTemplate(updated);
       if (!mounted) return;
@@ -338,6 +417,9 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
           ? template.description
           : _descriptionController.text.trim(),
       sections: _sections,
+      headerPrintSettings: _headerPrintSettings,
+      anamnesisPrintSettings: _anamnesisPrintSettings,
+      photosPrintSettings: _photosPrintSettings,
     );
     final json = const JsonEncoder.withIndent('  ').convert(toExport.toJson());
     try {
@@ -415,6 +497,9 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
             ? template.description
             : _descriptionController.text.trim(),
         sections: _sections,
+        headerPrintSettings: _headerPrintSettings,
+        anamnesisPrintSettings: _anamnesisPrintSettings,
+        photosPrintSettings: _photosPrintSettings,
       );
       final repo = getIt<TemplateRepository>();
       await repo.saveTemplate(newTemplate);
@@ -441,6 +526,220 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+}
+
+/// Диалог настройки визуализации шапки протокола (VET-096): стиль, отображаемые элементы.
+class _HeaderPrintSettingsDialog extends StatefulWidget {
+  final ProtocolHeaderPrintSettings? initial;
+
+  const _HeaderPrintSettingsDialog({this.initial});
+
+  @override
+  State<_HeaderPrintSettingsDialog> createState() => _HeaderPrintSettingsDialogState();
+}
+
+class _HeaderPrintSettingsDialogState extends State<_HeaderPrintSettingsDialog> {
+  late TextEditingController _fontSizeController;
+  bool _bold = false;
+  bool _italic = false;
+  bool _showTitle = true;
+  bool _showTemplateType = true;
+  bool _showDate = true;
+  bool _showPatient = true;
+  bool _showOwner = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final h = widget.initial;
+    _fontSizeController = TextEditingController(
+      text: h?.fontSize != null ? '${h!.fontSize}' : '',
+    );
+    _bold = h?.bold ?? false;
+    _italic = h?.italic ?? false;
+    _showTitle = h?.showTitle ?? true;
+    _showTemplateType = h?.showTemplateType ?? true;
+    _showDate = h?.showDate ?? true;
+    _showPatient = h?.showPatient ?? true;
+    _showOwner = h?.showOwner ?? true;
+  }
+
+  @override
+  void dispose() {
+    _fontSizeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Настройка шапки протокола'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Элементы, отображаемые в шапке PDF',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              value: _showTitle,
+              onChanged: (v) => setState(() => _showTitle = v ?? true),
+              title: const Text('Заголовок «Протокол осмотра»'),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+            CheckboxListTile(
+              value: _showTemplateType,
+              onChanged: (v) => setState(() => _showTemplateType = v ?? true),
+              title: const Text('Тип протокола'),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+            CheckboxListTile(
+              value: _showDate,
+              onChanged: (v) => setState(() => _showDate = v ?? true),
+              title: const Text('Дата осмотра'),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+            CheckboxListTile(
+              value: _showPatient,
+              onChanged: (v) => setState(() => _showPatient = v ?? true),
+              title: const Text('Пациент (кличка/имя)'),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+            CheckboxListTile(
+              value: _showOwner,
+              onChanged: (v) => setState(() => _showOwner = v ?? true),
+              title: const Text('Владелец'),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Стиль шрифта',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _fontSizeController,
+              decoration: const InputDecoration(
+                labelText: 'Размер шрифта (по умолчанию 12)',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Checkbox(
+                  value: _bold,
+                  onChanged: (v) => setState(() => _bold = v ?? false),
+                ),
+                const Text('Жирный'),
+                const SizedBox(width: 16),
+                Checkbox(
+                  value: _italic,
+                  onChanged: (v) => setState(() => _italic = v ?? false),
+                ),
+                const Text('Курсив'),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final fs = double.tryParse(_fontSizeController.text.trim());
+            final result = ProtocolHeaderPrintSettings(
+              fontSize: fs,
+              bold: _bold,
+              italic: _italic,
+              showTitle: _showTitle,
+              showTemplateType: _showTemplateType,
+              showDate: _showDate,
+              showPatient: _showPatient,
+              showOwner: _showOwner,
+            );
+            Navigator.pop(context, result);
+          },
+          child: const Text('Сохранить'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Диалог настройки раздела «Фотографии» (VET-101).
+class _PhotosPrintSettingsDialog extends StatefulWidget {
+  final PhotosPrintSettings? initial;
+
+  const _PhotosPrintSettingsDialog({this.initial});
+
+  @override
+  State<_PhotosPrintSettingsDialog> createState() => _PhotosPrintSettingsDialogState();
+}
+
+class _PhotosPrintSettingsDialogState extends State<_PhotosPrintSettingsDialog> {
+  late int _photosPerRow;
+
+  @override
+  void initState() {
+    super.initState();
+    _photosPerRow = widget.initial?.photosPerRow ?? 2;
+    _photosPerRow = _photosPerRow.clamp(1, 4);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Настройка раздела «Фотографии»'),
+      content: DropdownButtonFormField<int>(
+        initialValue: _photosPerRow,
+        decoration: const InputDecoration(
+          labelText: 'Фотографий в ряд',
+          border: OutlineInputBorder(),
+        ),
+        items: const [
+          DropdownMenuItem(value: 1, child: Text('1')),
+          DropdownMenuItem(value: 2, child: Text('2')),
+          DropdownMenuItem(value: 3, child: Text('3')),
+          DropdownMenuItem(value: 4, child: Text('4')),
+        ],
+        onChanged: (v) => setState(() => _photosPerRow = v ?? 2),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final prev = widget.initial;
+            Navigator.pop(context, PhotosPrintSettings(
+              positionX: prev?.positionX,
+              positionY: prev?.positionY,
+              width: prev?.width,
+              height: prev?.height,
+              pageIndex: prev?.pageIndex,
+              photosPerRow: _photosPerRow,
+            ));
+          },
+          child: const Text('Сохранить'),
+        ),
+      ],
+    );
   }
 }
 
@@ -522,17 +821,108 @@ class _CreateVersionDialogState extends State<_CreateVersionDialog> {
   }
 }
 
-/// Диалог редактирования раздела: название, порядок, список полей (ключ, подпись, тип).
-class _SectionEditDialog extends StatefulWidget {
-  final TemplateSection section;
-
-  const _SectionEditDialog({required this.section});
+/// VET-110: пунктирный разделитель между полями раздела.
+class _DottedDivider extends StatelessWidget {
+  const _DottedDivider();
 
   @override
-  State<_SectionEditDialog> createState() => _SectionEditDialogState();
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: LayoutBuilder(
+        builder: (context, constraints) => CustomPaint(
+          painter: _DottedLinePainter(color: Theme.of(context).dividerColor),
+          size: Size(constraints.maxWidth, 1),
+        ),
+      ),
+    );
+  }
 }
 
-class _SectionEditDialogState extends State<_SectionEditDialog> {
+class _DottedLinePainter extends CustomPainter {
+  final Color color;
+
+  _DottedLinePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
+    const dashWidth = 4;
+    const gap = 4;
+    double x = 0;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, 0), Offset((x + dashWidth).clamp(0, size.width), 0), paint);
+      x += dashWidth + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// VET-107: выбор рамки — Нет, Прямоугольная, Скруглённая (иконки).
+class _BorderSelector extends StatelessWidget {
+  final String label;
+  final String value; // 'none' | 'rectangular' | 'rounded'
+  final ValueChanged<String> onChanged;
+
+  const _BorderSelector({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    bool isSelected(String v) => value == v;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12)),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Нет',
+              icon: Icon(Icons.border_clear, color: isSelected('none') ? theme.colorScheme.primary : null),
+              style: isSelected('none') ? IconButton.styleFrom(backgroundColor: theme.colorScheme.primaryContainer) : null,
+              onPressed: () => onChanged('none'),
+            ),
+            IconButton(
+              tooltip: 'Прямоугольная',
+              icon: Icon(Icons.square_outlined, color: isSelected('rectangular') ? theme.colorScheme.primary : null),
+              style: isSelected('rectangular') ? IconButton.styleFrom(backgroundColor: theme.colorScheme.primaryContainer) : null,
+              onPressed: () => onChanged('rectangular'),
+            ),
+            IconButton(
+              tooltip: 'Скруглённая',
+              icon: Icon(Icons.rounded_corner, color: isSelected('rounded') ? theme.colorScheme.primary : null),
+              style: isSelected('rounded') ? IconButton.styleFrom(backgroundColor: theme.colorScheme.primaryContainer) : null,
+              onPressed: () => onChanged('rounded'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// VET-112: форма редактирования раздела на весь экран.
+class _SectionEditPage extends StatefulWidget {
+  final TemplateSection section;
+
+  const _SectionEditPage({required this.section});
+
+  @override
+  State<_SectionEditPage> createState() => _SectionEditPageState();
+}
+
+class _SectionEditPageState extends State<_SectionEditPage> {
   late TextEditingController _titleController;
   late TextEditingController _orderController;
   final List<TextEditingController> _keyControllers = [];
@@ -542,13 +932,29 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
   final List<TextEditingController> _rangeMinControllers = [];
   final List<TextEditingController> _rangeMaxControllers = [];
   final List<TextEditingController> _rangeUnitControllers = [];
+  final List<bool> _fieldAutoGrowHeight = [];
+  final List<String> _fieldBorder = []; // VET-107: 'none' | 'rectangular' | 'rounded'
+  // VET-068: настройки печатной формы (стиль; позиция/размер — в визуальном редакторе)
+  late TextEditingController _printFontSizeController;
+  bool _printBold = false;
+  bool _printItalic = false;
+  String _printBorder = 'none'; // VET-107: 'none' | 'rectangular' | 'rounded'
+
+  TemplateSection get _section => widget.section;
 
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.section.title);
-    _orderController = TextEditingController(text: '${widget.section.order}');
-    final fields = widget.section.fields;
+    _titleController = TextEditingController(text: _section.title);
+    _orderController = TextEditingController(text: '${_section.order}');
+    final ps = _section.printSettings;
+    _printFontSizeController = TextEditingController(text: ps?.fontSize != null ? '${ps!.fontSize}' : '');
+    _printBold = ps?.bold ?? false;
+    _printItalic = ps?.italic ?? false;
+    _printBorder = ps?.showBorder == true
+        ? (ps!.borderShape == 'rounded' ? 'rounded' : 'rectangular')
+        : 'none';
+    final fields = _section.fields;
     if (fields.isEmpty) {
       _keyControllers.add(TextEditingController(text: 'field_1'));
       _labelControllers.add(TextEditingController(text: 'Поле 1'));
@@ -557,6 +963,8 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
       _rangeMinControllers.add(TextEditingController());
       _rangeMaxControllers.add(TextEditingController());
       _rangeUnitControllers.add(TextEditingController());
+      _fieldAutoGrowHeight.add(false);
+      _fieldBorder.add('none');
     } else {
       for (final f in fields) {
         _keyControllers.add(TextEditingController(text: f.key));
@@ -571,6 +979,11 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
           text: v != null && v['max'] != null ? '${v['max']}' : '',
         ));
         _rangeUnitControllers.add(TextEditingController(text: f.unit ?? ''));
+        _fieldAutoGrowHeight.add(f.printSettings?.autoGrowHeight ?? false);
+        final ps = f.printSettings;
+        _fieldBorder.add(ps?.showBorder == true
+            ? (ps!.borderShape == 'rounded' ? 'rounded' : 'rectangular')
+            : 'none');
       }
     }
   }
@@ -582,6 +995,7 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
   void dispose() {
     _titleController.dispose();
     _orderController.dispose();
+    _printFontSizeController.dispose();
     for (final c in _keyControllers) {
       c.dispose();
     }
@@ -610,6 +1024,8 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
       _rangeMinControllers.add(TextEditingController());
       _rangeMaxControllers.add(TextEditingController());
       _rangeUnitControllers.add(TextEditingController());
+      _fieldAutoGrowHeight.add(false);
+      _fieldBorder.add('none');
     });
   }
 
@@ -628,25 +1044,114 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
       _rangeMinControllers.removeAt(i);
       _rangeMaxControllers.removeAt(i);
       _rangeUnitControllers.removeAt(i);
+      _fieldAutoGrowHeight.removeAt(i);
+      _fieldBorder.removeAt(i);
     });
+  }
+
+  void _saveAndPop() {
+    final order = int.tryParse(_orderController.text.trim()) ?? _section.order;
+    final existingFields = _section.fields;
+    final newFields = <TemplateField>[];
+    for (var i = 0; i < _keyControllers.length; i++) {
+      final key = _keyControllers[i].text.trim().isEmpty ? 'field_$i' : _keyControllers[i].text.trim();
+      final label = _labelControllers[i].text.trim().isEmpty ? 'Поле ${i + 1}' : _labelControllers[i].text.trim();
+      final oldField = i < existingFields.length ? existingFields[i] : null;
+      Map<String, dynamic>? validation;
+      String? unit;
+      List<String>? options;
+      if (_types[i] == 'reference') {
+        validation = {'referenceType': _referenceTypes[i] ?? _referenceTypeList.first};
+        options = null;
+        unit = oldField?.unit;
+      } else if (_types[i] == 'range') {
+        final min = num.tryParse(_rangeMinControllers[i].text.trim());
+        final max = num.tryParse(_rangeMaxControllers[i].text.trim());
+        validation = {};
+        if (min != null) validation['min'] = min;
+        if (max != null) validation['max'] = max;
+        unit = _rangeUnitControllers[i].text.trim().isEmpty ? null : _rangeUnitControllers[i].text.trim();
+        options = oldField?.options;
+      } else {
+        validation = oldField?.validation;
+        unit = oldField?.unit;
+        options = oldField?.options;
+      }
+      newFields.add(TemplateField(
+        key: key,
+        label: label,
+        type: _types[i],
+        unit: unit,
+        required: oldField?.required ?? false,
+        options: options,
+        validation: validation,
+        extraction: oldField?.extraction,
+        printSettings: FieldPrintSettings(
+          autoGrowHeight: _fieldAutoGrowHeight[i],
+          showBorder: _fieldBorder[i] != 'none',
+          borderShape: _fieldBorder[i] == 'rounded' ? 'rounded' : 'rectangular',
+        ),
+      ));
+    }
+    SectionPrintSettings? printSettings;
+    final fs = double.tryParse(_printFontSizeController.text.trim());
+    final ps = _section.printSettings;
+    if (ps != null || fs != null || _printBold || _printItalic || _printBorder != 'none') {
+      printSettings = SectionPrintSettings(
+        positionX: ps?.positionX,
+        positionY: ps?.positionY,
+        width: ps?.width,
+        height: ps?.height,
+        pageIndex: ps?.pageIndex,
+        fontSize: fs,
+        bold: _printBold,
+        italic: _printItalic,
+        showBorder: _printBorder != 'none',
+        borderShape: _printBorder == 'rounded' ? 'rounded' : 'rectangular',
+      );
+    }
+    Navigator.pop(
+      context,
+      TemplateSection(
+        id: _section.id,
+        title: _titleController.text.trim().isEmpty ? _section.title : _titleController.text.trim(),
+        order: order.clamp(1, 999),
+        fields: newFields,
+        printSettings: printSettings,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Редактирование раздела'),
-      content: SingleChildScrollView(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minWidth: 300,
-            maxWidth: MediaQuery.of(context).size.width * 0.9,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Редактирование раздела'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+          tooltip: 'Отмена',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: _saveAndPop,
+            child: const Text('Сохранить'),
           ),
-          child: SizedBox(
-            width: double.maxFinite,
-            child: Column(
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(context).padding.bottom + 24,
+        ),
+        child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const SizedBox(height: 8),
               TextField(
                 controller: _titleController,
                 decoration: const InputDecoration(
@@ -667,9 +1172,10 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
               Text('Поля раздела', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 8),
               ...List.generate(_keyControllers.length, (i) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Row(
+                return [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
@@ -771,6 +1277,24 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
                                 ),
                               ),
                             ],
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _fieldAutoGrowHeight[i],
+                                  onChanged: (v) => setState(() => _fieldAutoGrowHeight[i] = v ?? false),
+                                ),
+                                const Expanded(
+                                  child: Text('Увеличивать высоту при переполнении текста (печать)', style: TextStyle(fontSize: 12)),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _BorderSelector(
+                              label: 'Рамка (печать)',
+                              value: _fieldBorder[i],
+                              onChanged: (v) => setState(() => _fieldBorder[i] = v),
+                            ),
                           ],
                         ),
                       ),
@@ -781,77 +1305,64 @@ class _SectionEditDialogState extends State<_SectionEditDialog> {
                       ),
                     ],
                   ),
-                );
-              }),
+                ),
+                if (i < _keyControllers.length - 1) const _DottedDivider(),
+                ];
+              }).expand((e) => e),
               const SizedBox(height: 8),
               TextButton.icon(
                 icon: const Icon(Icons.add),
                 label: const Text('Добавить поле'),
                 onPressed: _addField,
               ),
+              const SizedBox(height: 20),
+              // VET-068: настройки печатной формы (позиция/размер — в визуальном редакторе)
+              ExpansionTile(
+                title: Text('Печатная форма', style: Theme.of(context).textTheme.titleSmall),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Позиция и размер задаются в визуальном редакторе (кнопка «Расположение на странице» на странице шаблона).',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _printFontSizeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Размер шрифта в печати',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Checkbox(value: _printBold, onChanged: (v) => setState(() => _printBold = v ?? false)),
+                            const Text('Жирный'),
+                            const SizedBox(width: 16),
+                            Checkbox(value: _printItalic, onChanged: (v) => setState(() => _printItalic = v ?? false)),
+                            const Text('Курсив'),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _BorderSelector(
+                          label: 'Рамка',
+                          value: _printBorder,
+                          onChanged: (v) => setState(() => _printBorder = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Отмена'),
-        ),
-        FilledButton(
-          onPressed: () {
-            final order = int.tryParse(_orderController.text.trim()) ?? widget.section.order;
-            final existingFields = widget.section.fields;
-            final newFields = <TemplateField>[];
-            for (var i = 0; i < _keyControllers.length; i++) {
-              final key = _keyControllers[i].text.trim().isEmpty ? 'field_$i' : _keyControllers[i].text.trim();
-              final label = _labelControllers[i].text.trim().isEmpty ? 'Поле ${i + 1}' : _labelControllers[i].text.trim();
-              final oldField = i < existingFields.length ? existingFields[i] : null;
-              Map<String, dynamic>? validation;
-              String? unit;
-              List<String>? options;
-              if (_types[i] == 'reference') {
-                validation = {'referenceType': _referenceTypes[i] ?? _referenceTypeList.first};
-                options = null;
-                unit = oldField?.unit;
-              } else if (_types[i] == 'range') {
-                final min = num.tryParse(_rangeMinControllers[i].text.trim());
-                final max = num.tryParse(_rangeMaxControllers[i].text.trim());
-                validation = {};
-                if (min != null) validation['min'] = min;
-                if (max != null) validation['max'] = max;
-                unit = _rangeUnitControllers[i].text.trim().isEmpty ? null : _rangeUnitControllers[i].text.trim();
-                options = oldField?.options;
-              } else {
-                validation = oldField?.validation;
-                unit = oldField?.unit;
-                options = oldField?.options;
-              }
-              newFields.add(TemplateField(
-                key: key,
-                label: label,
-                type: _types[i],
-                unit: unit,
-                required: oldField?.required ?? false,
-                options: options,
-                validation: validation,
-                extraction: oldField?.extraction,
-              ));
-            }
-            Navigator.pop(
-              context,
-              TemplateSection(
-                id: widget.section.id,
-                title: _titleController.text.trim().isEmpty ? widget.section.title : _titleController.text.trim(),
-                order: order.clamp(1, 999),
-                fields: newFields,
-              ),
-            );
-          },
-          child: const Text('Сохранить'),
-        ),
-      ],
     );
   }
 }

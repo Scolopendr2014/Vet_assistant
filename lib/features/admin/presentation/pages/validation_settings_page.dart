@@ -24,7 +24,12 @@ class ValidationSettingsPage extends ConsumerWidget {
             return const Center(child: Text('Нет шаблонов'));
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 24,
+            ),
             itemCount: templates.length,
             itemBuilder: (context, i) {
               final t = templates[i];

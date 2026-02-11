@@ -70,7 +70,11 @@ class _ReferencesListPageState extends ConsumerState<ReferencesListPage> {
                   );
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    bottom: MediaQuery.of(context).padding.bottom + 24,
+                  ),
                   itemCount: list.length,
                   itemBuilder: (context, i) {
                     final r = list[i];
