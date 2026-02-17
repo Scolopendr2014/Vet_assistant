@@ -27,13 +27,27 @@ class ProtocolTemplate {
 
   factory ProtocolTemplate.fromJson(Map<String, dynamic> json) {
     final sectionsList = json['sections'] as List<dynamic>? ?? [];
-    final sections = sectionsList
+    var sections = sectionsList
         .map((e) => TemplateSection.fromJson(e as Map<String, dynamic>))
         .toList();
-    sections.sort((a, b) => a.order.compareTo(b.order));
     final headerJson = json['headerPrintSettings'] as Map<String, dynamic>?;
     final anamnesisJson = json['anamnesisPrintSettings'] as Map<String, dynamic>?;
     final photosJson = json['photosPrintSettings'] as Map<String, dynamic>?;
+    // VET-149: миграция — если на шаблоне есть старый photosPrintSettings и нет ни одного раздела «Фотографии», добавляем один такой раздел.
+    final hasPhotosSection = sections.any((s) => s.sectionKind == sectionKindPhotos);
+    if (!hasPhotosSection && photosJson != null) {
+      final maxOrder = sections.isEmpty ? 0 : sections.map((s) => s.order).reduce((a, b) => a > b ? a : b);
+      sections = List.from(sections)
+        ..add(TemplateSection(
+          id: 'photos_${json['id']}_migrated',
+          title: 'Фотографии',
+          order: maxOrder + 1,
+          fields: [],
+          sectionKind: sectionKindPhotos,
+          photosPrintSettings: PhotosPrintSettings.fromJson(photosJson),
+        ));
+    }
+    sections.sort((a, b) => a.order.compareTo(b.order));
     return ProtocolTemplate(
       id: json['id'] as String,
       version: json['version'] as String? ?? '1.0.0',
@@ -62,6 +76,133 @@ class ProtocolTemplate {
       if (photosPrintSettings != null && photosPrintSettings!.toJson().isNotEmpty)
         'photosPrintSettings': photosPrintSettings!.toJson(),
     };
+  }
+
+  /// Собирает все ключи полей по разделам (поля разделов и ячейки таблиц с key). Порядок: разделы по order, затем поля/ячейки.
+  static List<String> _collectFieldKeysInOrder(ProtocolTemplate t) {
+    final sorted = List<TemplateSection>.from(t.sections)
+      ..sort((a, b) => a.order.compareTo(b.order));
+    final keys = <String>[];
+    for (final section in sorted) {
+      if (section.sectionKind == sectionKindPhotos) continue;
+      if (section.sectionKind == sectionKindTable) {
+        for (final cell in section.tableConfig?.cells ?? []) {
+          if (cell.isInputField && cell.key != null && cell.key!.isNotEmpty) {
+            keys.add(cell.key!);
+          }
+        }
+        continue;
+      }
+      for (final field in section.fields) {
+        if (field.key.isNotEmpty) keys.add(field.key);
+      }
+    }
+    return keys;
+  }
+
+  /// Есть ли дубликаты ключей полей в рамках шаблона.
+  bool get hasDuplicateFieldKeys {
+    final keys = ProtocolTemplate._collectFieldKeysInOrder(this);
+    return keys.length != keys.toSet().length;
+  }
+
+  /// Возвращает копию шаблона с уникальными ключами: повторяющиеся ключи переименовываются в key_2, key_3, … (миграция существующих данных).
+  ProtocolTemplate ensureUniqueFieldKeys() {
+    final sorted = List<TemplateSection>.from(sections)
+      ..sort((a, b) => a.order.compareTo(b.order));
+    final usedKeys = <String>{};
+    final newSections = <TemplateSection>[];
+
+    for (final section in sorted) {
+      if (section.sectionKind == sectionKindPhotos) {
+        newSections.add(section);
+        continue;
+      }
+      if (section.sectionKind == sectionKindTable) {
+        final tc = section.tableConfig;
+        if (tc == null) {
+          newSections.add(section);
+          continue;
+        }
+        final newCells = <TableCellConfig>[];
+        for (final cell in tc.cells) {
+          if (!cell.isInputField || cell.key == null || cell.key!.isEmpty) {
+            newCells.add(cell);
+            continue;
+          }
+          var key = cell.key!;
+          if (usedKeys.contains(key)) {
+            var suffix = 2;
+            while (usedKeys.contains('${key}_$suffix')) {
+              suffix++;
+            }
+            key = '${key}_$suffix';
+          }
+          usedKeys.add(key);
+          newCells.add(TableCellConfig(
+            row: cell.row,
+            col: cell.col,
+            isInputField: cell.isInputField,
+            fieldType: cell.fieldType,
+            key: key,
+            label: cell.label,
+            staticText: cell.staticText,
+            imageRef: cell.imageRef,
+          ));
+        }
+        newSections.add(section.copyWith(
+          tableConfig: TableSectionConfig(
+            tableRows: tc.tableRows,
+            tableCols: tc.tableCols,
+            cells: newCells,
+            mergeRegions: tc.mergeRegions,
+            columnWidthsMm: tc.columnWidthsMm,
+            rowHeightsMm: tc.rowHeightsMm,
+          ),
+        ));
+        continue;
+      }
+      final newFields = <TemplateField>[];
+      for (final field in section.fields) {
+        var key = field.key;
+        if (key.isEmpty) {
+          newFields.add(field);
+          continue;
+        }
+        if (usedKeys.contains(key)) {
+          var suffix = 2;
+          while (usedKeys.contains('${key}_$suffix')) {
+            suffix++;
+          }
+          key = '${key}_$suffix';
+        }
+        usedKeys.add(key);
+        newFields.add(TemplateField(
+          key: key,
+          label: field.label,
+          type: field.type,
+          unit: field.unit,
+          required: field.required,
+          options: field.options,
+          validation: field.validation,
+          extraction: field.extraction,
+          printSettings: field.printSettings,
+        ));
+      }
+      newSections.add(section.copyWith(fields: newFields));
+    }
+
+    return ProtocolTemplate(
+      id: id,
+      version: version,
+      locale: locale,
+      title: title,
+      description: description,
+      sections: newSections,
+      headerPrintSettings: headerPrintSettings,
+      anamnesisPrintSettings: anamnesisPrintSettings,
+      photosPrintSettings: photosPrintSettings,
+    );
   }
 }
 
@@ -300,6 +441,151 @@ class SectionPrintSettings {
   }
 }
 
+/// VET-149: вид раздела шаблона — обычные поля или блок «Фотографии».
+const String sectionKindFields = 'fields';
+const String sectionKindPhotos = 'photos';
+/// VET-150: вид раздела — таблица.
+const String sectionKindTable = 'table';
+
+/// VET-150: конфиг ячейки таблицы — поле ввода (тип поля) или статичный текст. VET-151: статичное изображение.
+class TableCellConfig {
+  const TableCellConfig({
+    required this.row,
+    required this.col,
+    this.isInputField = false,
+    this.fieldType,
+    this.key,
+    this.label,
+    this.staticText,
+    this.imageRef,
+  });
+
+  final int row;
+  final int col;
+  final bool isInputField;
+  final String? fieldType;
+  final String? key;
+  final String? label;
+  final String? staticText;
+  /// VET-151: ссылка на статичное изображение в шаблоне (id медиа или путь).
+  final String? imageRef;
+
+  factory TableCellConfig.fromJson(Map<String, dynamic> json) {
+    return TableCellConfig(
+      row: json['row'] as int? ?? 0,
+      col: json['col'] as int? ?? 0,
+      isInputField: json['isInputField'] as bool? ?? false,
+      fieldType: json['fieldType'] as String?,
+      key: json['key'] as String?,
+      label: json['label'] as String?,
+      staticText: json['staticText'] as String?,
+      imageRef: json['imageRef'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'row': row,
+      'col': col,
+      if (isInputField) 'isInputField': true,
+      if (fieldType != null) 'fieldType': fieldType,
+      if (key != null) 'key': key,
+      if (label != null) 'label': label,
+      if (staticText != null) 'staticText': staticText,
+      if (imageRef != null) 'imageRef': imageRef,
+    };
+  }
+}
+
+/// VET-150 (подэтап 2): прямоугольная область объединённых ячеек и главная ячейка (источник текста).
+class TableMergeRegion {
+  const TableMergeRegion({
+    required this.row,
+    required this.col,
+    required this.rowSpan,
+    required this.colSpan,
+    required this.mainCellRow,
+    required this.mainCellCol,
+  });
+
+  final int row;
+  final int col;
+  final int rowSpan;
+  final int colSpan;
+  final int mainCellRow;
+  final int mainCellCol;
+
+  factory TableMergeRegion.fromJson(Map<String, dynamic> json) {
+    return TableMergeRegion(
+      row: json['row'] as int? ?? 0,
+      col: json['col'] as int? ?? 0,
+      rowSpan: json['rowSpan'] as int? ?? 1,
+      colSpan: json['colSpan'] as int? ?? 1,
+      mainCellRow: json['mainCellRow'] as int? ?? 0,
+      mainCellCol: json['mainCellCol'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'row': row,
+      'col': col,
+      'rowSpan': rowSpan,
+      'colSpan': colSpan,
+      'mainCellRow': mainCellRow,
+      'mainCellCol': mainCellCol,
+    };
+  }
+}
+
+/// VET-150: конфиг раздела типа «Таблица» — размерность, ячейки, объединения. VET-151: размеры ячеек в мм.
+class TableSectionConfig {
+  const TableSectionConfig({
+    this.tableRows = 2,
+    this.tableCols = 2,
+    this.cells = const [],
+    this.mergeRegions = const [],
+    this.columnWidthsMm,
+    this.rowHeightsMm,
+  });
+
+  final int tableRows;
+  final int tableCols;
+  final List<TableCellConfig> cells;
+  final List<TableMergeRegion> mergeRegions;
+  /// VET-151: ширина столбцов в мм (по порядку). Если null — делить поровну.
+  final List<double>? columnWidthsMm;
+  /// VET-151: высота строк в мм. Если null — делить поровну.
+  final List<double>? rowHeightsMm;
+
+  factory TableSectionConfig.fromJson(Map<String, dynamic>? json) {
+    if (json == null || json.isEmpty) return const TableSectionConfig();
+    final cellsList = json['cells'] as List<dynamic>? ?? [];
+    final mergeList = json['mergeRegions'] as List<dynamic>? ?? [];
+    final colW = json['columnWidthsMm'] as List<dynamic>?;
+    final rowH = json['rowHeightsMm'] as List<dynamic>?;
+    return TableSectionConfig(
+      tableRows: json['tableRows'] as int? ?? 2,
+      tableCols: json['tableCols'] as int? ?? 2,
+      cells: cellsList.map((e) => TableCellConfig.fromJson(e as Map<String, dynamic>)).toList(),
+      mergeRegions: mergeList.map((e) => TableMergeRegion.fromJson(e as Map<String, dynamic>)).toList(),
+      columnWidthsMm: colW?.map((e) => (e as num).toDouble()).toList(),
+      rowHeightsMm: rowH?.map((e) => (e as num).toDouble()).toList(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      if (tableRows != 2) 'tableRows': tableRows,
+      if (tableCols != 2) 'tableCols': tableCols,
+      if (cells.isNotEmpty) 'cells': cells.map((e) => e.toJson()).toList(),
+      if (mergeRegions.isNotEmpty) 'mergeRegions': mergeRegions.map((e) => e.toJson()).toList(),
+      if (columnWidthsMm != null && columnWidthsMm!.isNotEmpty) 'columnWidthsMm': columnWidthsMm,
+      if (rowHeightsMm != null && rowHeightsMm!.isNotEmpty) 'rowHeightsMm': rowHeightsMm,
+    };
+  }
+}
+
 class TemplateSection {
   const TemplateSection({
     required this.id,
@@ -307,14 +593,26 @@ class TemplateSection {
     required this.order,
     required this.fields,
     this.printSettings,
+    this.sectionKind = sectionKindFields,
+    this.photosPrintSettings,
+    this.tableConfig,
   });
 
   final String id;
   final String title;
   final int order;
   final List<TemplateField> fields;
-  /// VET-068: настройки вида/размера/расположения в печатной форме.
+  /// VET-068: настройки вида/размера/расположения в печатной форме (для разделов с полями).
   final SectionPrintSettings? printSettings;
+  /// VET-149: вид раздела — 'fields', 'photos' или 'table'.
+  final String sectionKind;
+  /// VET-149: настройки печати для раздела «Фотографии». Только при sectionKind == 'photos'.
+  final PhotosPrintSettings? photosPrintSettings;
+  /// VET-150: конфиг таблицы. Только при sectionKind == 'table'.
+  final TableSectionConfig? tableConfig;
+
+  bool get isPhotosSection => sectionKind == sectionKindPhotos;
+  bool get isTableSection => sectionKind == sectionKindTable;
 
   factory TemplateSection.fromJson(Map<String, dynamic> json) {
     final fieldsList = json['fields'] as List<dynamic>? ?? [];
@@ -322,12 +620,18 @@ class TemplateSection {
         .map((e) => TemplateField.fromJson(e as Map<String, dynamic>))
         .toList();
     final printJson = json['printSettings'] as Map<String, dynamic>?;
+    final kind = json['sectionKind'] as String? ?? sectionKindFields;
+    final photosJson = json['photosPrintSettings'] as Map<String, dynamic>?;
+    final tableJson = json['tableConfig'] as Map<String, dynamic>?;
     return TemplateSection(
       id: json['id'] as String,
       title: json['title'] as String,
       order: json['order'] as int? ?? 0,
       fields: fields,
       printSettings: printJson != null ? SectionPrintSettings.fromJson(printJson) : null,
+      sectionKind: kind,
+      photosPrintSettings: photosJson != null ? PhotosPrintSettings.fromJson(photosJson) : null,
+      tableConfig: tableJson != null ? TableSectionConfig.fromJson(tableJson) : null,
     );
   }
 
@@ -338,17 +642,50 @@ class TemplateSection {
       'order': order,
       'fields': fields.map((e) => e.toJson()).toList(),
       if (printSettings != null && printSettings!.toJson().isNotEmpty) 'printSettings': printSettings!.toJson(),
+      if (sectionKind != sectionKindFields) 'sectionKind': sectionKind,
+      if (photosPrintSettings != null && photosPrintSettings!.toJson().isNotEmpty)
+        'photosPrintSettings': photosPrintSettings!.toJson(),
+      if (tableConfig != null && tableConfig!.toJson().isNotEmpty) 'tableConfig': tableConfig!.toJson(),
     };
+  }
+
+  TemplateSection copyWith({
+    String? id,
+    String? title,
+    int? order,
+    List<TemplateField>? fields,
+    SectionPrintSettings? printSettings,
+    String? sectionKind,
+    PhotosPrintSettings? photosPrintSettings,
+    TableSectionConfig? tableConfig,
+  }) {
+    return TemplateSection(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      order: order ?? this.order,
+      fields: fields ?? this.fields,
+      printSettings: printSettings ?? this.printSettings,
+      sectionKind: sectionKind ?? this.sectionKind,
+      photosPrintSettings: photosPrintSettings ?? this.photosPrintSettings,
+      tableConfig: tableConfig ?? this.tableConfig,
+    );
   }
 }
 
 /// Настройки печати для поля раздела (VET-068). Опция автоувеличения высоты при переполнении текста.
 /// VET-103: showBorder, borderShape (скруглённая/прямоугольная рамка).
+/// VET-153: photosPerRow для типа поля «Фото» (1–4).
+/// VET-158, VET-159, VET-160: отображение подписи на печати — показ, расположение, жирный/курсив.
 class FieldPrintSettings {
   const FieldPrintSettings({
     this.autoGrowHeight = false,
     this.showBorder = false,
     this.borderShape = 'rectangular',
+    this.photosPerRow,
+    this.showLabel = true,
+    this.labelPosition = 'before',
+    this.labelBold = false,
+    this.labelItalic = false,
   });
 
   /// Если true, при генерации PDF высота области вывода текста увеличивается по содержимому.
@@ -357,6 +694,16 @@ class FieldPrintSettings {
   final bool showBorder;
   /// VET-103: тип рамки — 'rounded' (скруглённая) или 'rectangular' (прямоугольная).
   final String borderShape;
+  /// VET-153: для поля типа «Фото» — сколько фото в ряд на печати (1–4). По умолчанию 2.
+  final int? photosPerRow;
+  /// VET-158: отображать подпись поля на печатной форме (по умолчанию true; для типа «Фото» — false).
+  final bool showLabel;
+  /// VET-159: расположение подписи — 'before' (перед полем), 'above' (над полем), 'inline' (в начале текста поля).
+  final String labelPosition;
+  /// VET-159: подпись жирным.
+  final bool labelBold;
+  /// VET-159: подпись курсивом.
+  final bool labelItalic;
 
   factory FieldPrintSettings.fromJson(Map<String, dynamic>? json) {
     if (json == null || json.isEmpty) return const FieldPrintSettings();
@@ -364,6 +711,11 @@ class FieldPrintSettings {
       autoGrowHeight: json['autoGrowHeight'] as bool? ?? false,
       showBorder: json['showBorder'] as bool? ?? false,
       borderShape: json['borderShape'] as String? ?? 'rectangular',
+      photosPerRow: (json['photosPerRow'] as num?)?.toInt(),
+      showLabel: json['showLabel'] as bool? ?? true,
+      labelPosition: json['labelPosition'] as String? ?? 'before',
+      labelBold: json['labelBold'] as bool? ?? false,
+      labelItalic: json['labelItalic'] as bool? ?? false,
     );
   }
 
@@ -372,6 +724,11 @@ class FieldPrintSettings {
     if (autoGrowHeight) m['autoGrowHeight'] = true;
     if (showBorder) m['showBorder'] = true;
     if (borderShape != 'rectangular') m['borderShape'] = borderShape;
+    if (photosPerRow != null) m['photosPerRow'] = photosPerRow;
+    if (!showLabel) m['showLabel'] = false;
+    if (labelPosition != 'before') m['labelPosition'] = labelPosition;
+    if (labelBold) m['labelBold'] = true;
+    if (labelItalic) m['labelItalic'] = true;
     return m;
   }
 }

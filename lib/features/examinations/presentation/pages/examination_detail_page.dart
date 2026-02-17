@@ -16,7 +16,8 @@ import '../../../vet_profile/domain/repositories/vet_clinic_repository.dart';
 import '../../domain/repositories/examination_repository.dart';
 import '../../services/audio_playback_service.dart';
 import '../../utils/template_icons.dart';
-import '../../../templates/domain/entities/protocol_template.dart';
+import '../../../templates/domain/entities/protocol_template.dart'
+    show ProtocolTemplate, TemplateSection, sectionKindPhotos, sectionKindTable;
 import '../../../templates/domain/repositories/template_repository.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
 import '../../../vet_profile/domain/repositories/vet_profile_repository.dart';
@@ -218,46 +219,189 @@ class ExaminationDetailPage extends ConsumerWidget {
     );
   }
 
-  /// VET-059: русское наименование поля из шаблона по ключу.
-  static String _labelForKey(ProtocolTemplate? template, String key) {
-    if (template == null) return key;
-    for (final section in template.sections) {
-      for (final field in section.fields) {
-        if (field.key == key) return field.label;
-      }
-    }
-    return key;
-  }
-
+  /// Строит блок «Данные осмотра»: при наличии шаблона — по порядку полей шаблона, все поля; иначе — по ключам extractedFields.
   static Widget _buildExtractedFields(
     BuildContext context,
     Map<String, dynamic> extractedFields,
     ProtocolTemplate? template,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final e in extractedFields.entries)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 140,
-                  child: Text(
-                    '${_labelForKey(template, e.key)}:',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    if (template == null || template.sections.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final e in extractedFields.entries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 140,
+                    child: Text(
+                      '${e.key}:',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
-                Expanded(child: Text(e.value?.toString() ?? '—')),
-              ],
+                  Expanded(child: Text(_formatFieldValue(e.value))),
+                ],
+              ),
+            ),
+        ],
+      );
+    }
+    final sortedSections = List<TemplateSection>.from(template.sections)
+      ..sort((a, b) => a.order.compareTo(b.order));
+    final rows = <Widget>[];
+    for (final section in sortedSections) {
+      if (section.sectionKind == sectionKindPhotos) continue;
+      if (section.sectionKind == sectionKindTable) {
+        final tc = section.tableConfig;
+        if (tc != null) {
+          for (final cell in tc.cells) {
+            if (cell.isInputField && cell.key != null) {
+              final label = cell.label?.isNotEmpty == true ? cell.label! : cell.key!;
+              final value = extractedFields[cell.key];
+              rows.add(_buildFieldRow(context, label, value));
+            }
+          }
+        }
+        continue;
+      }
+      for (final field in section.fields) {
+        final value = extractedFields[field.key];
+        if (field.type == 'photo' && value is List && value.isNotEmpty) {
+          rows.add(_buildPhotoFieldRow(context, field.label, value));
+        } else {
+          rows.add(_buildFieldRow(context, field.label, value));
+        }
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: rows,
+    );
+  }
+
+  static Widget _buildFieldRow(BuildContext context, String label, dynamic value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
-      ],
+          Expanded(child: Text(_formatFieldValue(value))),
+        ],
+      ),
     );
+  }
+
+  /// Фото из поля типа «Фото» (список {path, description}) — превью и подписи.
+  static Widget _buildPhotoFieldRow(BuildContext context, String label, List<dynamic> value) {
+    final items = <({String path, String? description})>[];
+    for (final e in value) {
+      if (e is! Map) continue;
+      final path = e['path']?.toString();
+      if (path == null || path.isEmpty) continue;
+      final desc = e['description']?.toString();
+      items.add((path: path, description: desc));
+    }
+    if (items.isEmpty) {
+      return _buildFieldRow(context, label, null);
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label:',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 140,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final file = File(item.path);
+                return SizedBox(
+                  width: 160,
+                  child: Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: file.existsSync()
+                              ? Image.file(
+                                  file,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                )
+                              : Center(
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    color: Theme.of(context)
+                                        .colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                        ),
+                        if (item.description != null &&
+                            item.description!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(
+                              item.description!,
+                              style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatFieldValue(dynamic value) {
+    if (value == null) return '—';
+    if (value is List) {
+      if (value.isEmpty) return '—';
+      if (value.isNotEmpty && value.first is Map) {
+        return value
+            .map((e) {
+              final m = e as Map;
+              return m['description']?.toString() ?? m['path']?.toString() ?? '';
+            })
+            .where((s) => s.isNotEmpty)
+            .join('; ');
+      }
+      return value.join(', ');
+    }
+    return value.toString();
   }
 
   static Future<void> _sharePdf(

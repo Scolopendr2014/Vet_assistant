@@ -32,7 +32,6 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
   List<TemplateSection> _sections = [];
   ProtocolHeaderPrintSettings? _headerPrintSettings;
   AnamnesisPrintSettings? _anamnesisPrintSettings;
-  PhotosPrintSettings? _photosPrintSettings;
   bool _saving = false;
   bool _initialized = false;
 
@@ -52,25 +51,66 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     _sections.sort((a, b) => a.order.compareTo(b.order));
     _headerPrintSettings = template.headerPrintSettings;
     _anamnesisPrintSettings = template.anamnesisPrintSettings;
-    _photosPrintSettings = template.photosPrintSettings;
   }
 
-  void _addSection() {
-    final order = _sections.isEmpty ? 1 : (_sections.map((s) => s.order).reduce((a, b) => a > b ? a : b) + 1);
-    setState(() {
-      _sections.add(TemplateSection(
-        id: const Uuid().v4(),
-        title: 'Новый раздел',
-        order: order,
-        fields: [
-          TemplateField(
-            key: 'field_${const Uuid().v4().substring(0, 8)}',
-            label: 'Поле 1',
-            type: 'text',
-            required: false,
+  void _addSection() async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Добавить раздел'),
+        content: const Text('Выберите тип раздела:'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'fields'),
+            child: const Text('Обычный раздел (поля)'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'photos'),
+            child: const Text('Раздел с фотографиями'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'table'),
+            child: const Text('Раздел — таблица'),
           ),
         ],
-      ));
+      ),
+    );
+    if (choice == null || !mounted) return;
+    final order = _sections.isEmpty ? 1 : (_sections.map((s) => s.order).reduce((a, b) => a > b ? a : b) + 1);
+    setState(() {
+      if (choice == 'photos') {
+        _sections.add(TemplateSection(
+          id: const Uuid().v4(),
+          title: 'Фотографии',
+          order: order,
+          fields: [],
+          sectionKind: sectionKindPhotos,
+          photosPrintSettings: const PhotosPrintSettings(photosPerRow: 2),
+        ));
+      } else if (choice == 'table') {
+        _sections.add(TemplateSection(
+          id: const Uuid().v4(),
+          title: 'Таблица',
+          order: order,
+          fields: [],
+          sectionKind: sectionKindTable,
+          tableConfig: const TableSectionConfig(tableRows: 2, tableCols: 2),
+        ));
+      } else {
+        _sections.add(TemplateSection(
+          id: const Uuid().v4(),
+          title: 'Новый раздел',
+          order: order,
+          fields: [
+            TemplateField(
+              key: 'field_${const Uuid().v4().substring(0, 8)}',
+              label: 'Поле 1',
+              type: 'text',
+              required: false,
+            ),
+          ],
+        ));
+      }
       _sections.sort((a, b) => a.order.compareTo(b.order));
     });
   }
@@ -80,8 +120,8 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     setState(() {
       final a = _sections[index];
       final b = _sections[index - 1];
-      _sections[index - 1] = TemplateSection(id: a.id, title: a.title, order: b.order, fields: a.fields, printSettings: a.printSettings);
-      _sections[index] = TemplateSection(id: b.id, title: b.title, order: a.order, fields: b.fields, printSettings: b.printSettings);
+      _sections[index - 1] = a.copyWith(order: b.order);
+      _sections[index] = b.copyWith(order: a.order);
       _sections.sort((a, b) => a.order.compareTo(b.order));
     });
   }
@@ -91,8 +131,8 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     setState(() {
       final a = _sections[index];
       final b = _sections[index + 1];
-      _sections[index] = TemplateSection(id: b.id, title: b.title, order: a.order, fields: b.fields, printSettings: b.printSettings);
-      _sections[index + 1] = TemplateSection(id: a.id, title: a.title, order: b.order, fields: a.fields, printSettings: a.printSettings);
+      _sections[index] = b.copyWith(order: a.order);
+      _sections[index + 1] = a.copyWith(order: b.order);
       _sections.sort((a, b) => a.order.compareTo(b.order));
     });
   }
@@ -114,34 +154,50 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
     setState(() {
       _sections.removeAt(index);
       for (var i = 0; i < _sections.length; i++) {
-        _sections[i] = TemplateSection(
-          id: _sections[i].id,
-          title: _sections[i].title,
-          order: i + 1,
-          fields: _sections[i].fields,
-          printSettings: _sections[i].printSettings,
-        );
+        _sections[i] = _sections[i].copyWith(order: i + 1);
       }
     });
   }
 
+  /// Ключи полей из всех разделов кроме раздела с указанным индексом (уникальность в рамках шаблона).
+  Set<String> _fieldKeysExceptSection(int excludeIndex) {
+    final keys = <String>{};
+    for (var i = 0; i < _sections.length; i++) {
+      if (i == excludeIndex) continue;
+      final s = _sections[i];
+      if (s.sectionKind == sectionKindPhotos) continue;
+      if (s.sectionKind == sectionKindTable) {
+        for (final cell in s.tableConfig?.cells ?? []) {
+          if (cell.isInputField && cell.key != null && cell.key!.isNotEmpty) {
+            keys.add(cell.key!);
+          }
+        }
+        continue;
+      }
+      for (final f in s.fields) {
+        if (f.key.isNotEmpty) keys.add(f.key);
+      }
+    }
+    return keys;
+  }
+
   Future<void> _editSection(int index) async {
     final section = _sections[index];
+    final keysUsedElsewhere = _fieldKeysExceptSection(index);
+    final Widget page = section.isPhotosSection
+        ? _PhotosSectionEditPage(section: section)
+        : section.isTableSection
+            ? _TableSectionEditPage(section: section, keysUsedInOtherSections: keysUsedElsewhere)
+            : _SectionEditPage(section: section, keysUsedInOtherSections: keysUsedElsewhere);
     final updated = await Navigator.of(context).push<TemplateSection>(
       MaterialPageRoute(
-        builder: (ctx) => _SectionEditPage(section: section),
+        builder: (ctx) => page,
         fullscreenDialog: true,
       ),
     );
     if (updated != null && mounted) {
       setState(() {
-        _sections[index] = TemplateSection(
-          id: updated.id,
-          title: updated.title,
-          order: updated.order,
-          fields: updated.fields,
-          printSettings: updated.printSettings,
-        );
+        _sections[index] = updated;
         _sections.sort((a, b) => a.order.compareTo(b.order));
       });
     }
@@ -285,21 +341,6 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.photo_library_outlined, size: 22),
-                      tooltip: 'Настройка раздела «Фотографии»',
-                      onPressed: () async {
-                        final updated = await showDialog<PhotosPrintSettings>(
-                          context: context,
-                          builder: (ctx) => _PhotosPrintSettingsDialog(
-                            initial: _photosPrintSettings,
-                          ),
-                        );
-                        if (updated != null && mounted) {
-                          setState(() => _photosPrintSettings = updated);
-                        }
-                      },
-                    ),
-                    IconButton(
                       icon: const Icon(Icons.dashboard_customize, size: 22),
                       tooltip: 'Расположение на странице',
                       onPressed: () async {
@@ -309,13 +350,11 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
                               sections: _sections,
                               headerPrintSettings: _headerPrintSettings,
                               anamnesisPrintSettings: _anamnesisPrintSettings,
-                              photosPrintSettings: _photosPrintSettings,
                               onSave: (result) {
                                 setState(() {
                                   _sections = result.sections;
                                   _headerPrintSettings = result.headerPrintSettings;
                                   _anamnesisPrintSettings = result.anamnesisPrintSettings;
-                                  _photosPrintSettings = result.photosPrintSettings;
                                 });
                               },
                             ),
@@ -359,7 +398,11 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
                       child: ListTile(
                         title: Text(s.title),
                         subtitle: Text(
-                          'Порядок: ${s.order} · полей: ${s.fields.length}',
+                          s.isPhotosSection
+                              ? 'Порядок: ${s.order} · Фотографии (в ряд: ${s.photosPrintSettings?.photosPerRow ?? 2})'
+                              : s.isTableSection
+                                  ? 'Порядок: ${s.order} · Таблица ${s.tableConfig?.tableRows ?? 2}×${s.tableConfig?.tableCols ?? 2}'
+                                  : 'Порядок: ${s.order} · полей: ${s.fields.length}',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                         trailing: Row(
@@ -424,8 +467,20 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
         sections: _sections,
         headerPrintSettings: _headerPrintSettings,
         anamnesisPrintSettings: _anamnesisPrintSettings,
-        photosPrintSettings: _photosPrintSettings,
+        photosPrintSettings: null,
       );
+      if (updated.hasDuplicateFieldKeys) {
+        setState(() => _saving = false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Ключи полей должны быть уникальны в рамках шаблона. Исправьте дубликаты в разделах (поле «Ключ»).',
+            ),
+          ),
+        );
+        return;
+      }
       await getIt<TemplateRepository>().saveTemplate(updated);
       if (!mounted) return;
       ref.invalidate(templateListProvider);
@@ -433,6 +488,7 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
       ref.invalidate(templateByRowIdProvider('${template.id}_${template.version}'));
       ref.invalidate(versionRowsByTypeProvider(template.id));
       ref.invalidate(activeTemplateListProvider);
+      ref.invalidate(templateForExaminationProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Шаблон сохранён')),
       );
@@ -466,7 +522,7 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
       sections: _sections,
       headerPrintSettings: _headerPrintSettings,
       anamnesisPrintSettings: _anamnesisPrintSettings,
-      photosPrintSettings: _photosPrintSettings,
+      photosPrintSettings: null,
     );
     final json = const JsonEncoder.withIndent('  ').convert(toExport.toJson());
     try {
@@ -615,6 +671,7 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
       ref.invalidate(templateByRowIdProvider('${template.id}_${template.version}'));
       ref.invalidate(versionRowsByTypeProvider(template.id));
       ref.invalidate(activeTemplateListProvider);
+      ref.invalidate(templateForExaminationProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Шаблон «${template.title}» v${template.version} импортирован')),
       );
@@ -681,7 +738,7 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
         sections: _sections,
         headerPrintSettings: _headerPrintSettings,
         anamnesisPrintSettings: _anamnesisPrintSettings,
-        photosPrintSettings: _photosPrintSettings,
+        photosPrintSettings: null,
       );
       final repo = getIt<TemplateRepository>();
       await repo.saveTemplate(newTemplate);
@@ -695,6 +752,7 @@ class _TemplateEditPageState extends ConsumerState<TemplateEditPage> {
       ref.invalidate(templateByRowIdProvider('${template.id}_$newVersion'));
       ref.invalidate(versionRowsByTypeProvider(template.id));
       ref.invalidate(activeTemplateListProvider);
+      ref.invalidate(templateForExaminationProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Создана новая версия $newVersion')),
       );
@@ -818,19 +876,16 @@ class _HeaderPrintSettingsDialogState extends State<_HeaderPrintSettingsDialog> 
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 8),
+            // VET-171: настройка «Курсив» скрыта (работает некорректно).
             Row(
               children: [
-                Checkbox(
-                  value: _bold,
-                  onChanged: (v) => setState(() => _bold = v ?? false),
+                Tooltip(
+                  message: 'Жирный',
+                  child: IconButton(
+                    icon: Icon(Icons.format_bold, color: _bold ? Theme.of(context).colorScheme.primary : null),
+                    onPressed: () => setState(() => _bold = !_bold),
+                  ),
                 ),
-                const Text('Жирный'),
-                const SizedBox(width: 16),
-                Checkbox(
-                  value: _italic,
-                  onChanged: (v) => setState(() => _italic = v ?? false),
-                ),
-                const Text('Курсив'),
               ],
             ),
           ],
@@ -844,6 +899,7 @@ class _HeaderPrintSettingsDialogState extends State<_HeaderPrintSettingsDialog> 
         FilledButton(
           onPressed: () {
             final fs = double.tryParse(_fontSizeController.text.trim());
+            final initial = widget.initial;
             final result = ProtocolHeaderPrintSettings(
               fontSize: fs,
               bold: _bold,
@@ -853,6 +909,11 @@ class _HeaderPrintSettingsDialogState extends State<_HeaderPrintSettingsDialog> 
               showDate: _showDate,
               showPatient: _showPatient,
               showOwner: _showOwner,
+              positionX: initial?.positionX,
+              positionY: initial?.positionY,
+              width: initial?.width,
+              height: initial?.height,
+              pageIndex: initial?.pageIndex,
             );
             Navigator.pop(context, result);
           },
@@ -865,9 +926,7 @@ class _HeaderPrintSettingsDialogState extends State<_HeaderPrintSettingsDialog> 
 
 /// Диалог настройки раздела «Фотографии» (VET-101).
 class _PhotosPrintSettingsDialog extends StatefulWidget {
-  final PhotosPrintSettings? initial;
-
-  const _PhotosPrintSettingsDialog({this.initial});
+  const _PhotosPrintSettingsDialog();
 
   @override
   State<_PhotosPrintSettingsDialog> createState() => _PhotosPrintSettingsDialogState();
@@ -879,7 +938,7 @@ class _PhotosPrintSettingsDialogState extends State<_PhotosPrintSettingsDialog> 
   @override
   void initState() {
     super.initState();
-    _photosPerRow = widget.initial?.photosPerRow ?? 2;
+    _photosPerRow = 2;
     _photosPerRow = _photosPerRow.clamp(1, 4);
   }
 
@@ -908,19 +967,422 @@ class _PhotosPrintSettingsDialogState extends State<_PhotosPrintSettingsDialog> 
         ),
         FilledButton(
           onPressed: () {
-            final prev = widget.initial;
             Navigator.pop(context, PhotosPrintSettings(
-              positionX: prev?.positionX,
-              positionY: prev?.positionY,
-              width: prev?.width,
-              height: prev?.height,
-              pageIndex: prev?.pageIndex,
               photosPerRow: _photosPerRow,
             ));
           },
           child: const Text('Сохранить'),
         ),
       ],
+    );
+  }
+}
+
+/// VET-149: форма редактирования раздела «Фотографии» — название, порядок, настройки печати (фото в ряд).
+class _PhotosSectionEditPage extends StatefulWidget {
+  final TemplateSection section;
+
+  const _PhotosSectionEditPage({required this.section});
+
+  @override
+  State<_PhotosSectionEditPage> createState() => _PhotosSectionEditPageState();
+}
+
+class _PhotosSectionEditPageState extends State<_PhotosSectionEditPage> {
+  late TextEditingController _titleController;
+  late TextEditingController _orderController;
+  late int _photosPerRow;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.section.title);
+    _orderController = TextEditingController(text: '${widget.section.order}');
+    _photosPerRow = widget.section.photosPrintSettings?.photosPerRow ?? 2;
+    _photosPerRow = _photosPerRow.clamp(1, 4);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _orderController.dispose();
+    super.dispose();
+  }
+
+  void _saveAndPop() {
+    final order = int.tryParse(_orderController.text.trim()) ?? widget.section.order;
+    final prev = widget.section.photosPrintSettings;
+    final photosPrintSettings = PhotosPrintSettings(
+      positionX: prev?.positionX,
+      positionY: prev?.positionY,
+      width: prev?.width,
+      height: prev?.height,
+      pageIndex: prev?.pageIndex,
+      photosPerRow: _photosPerRow,
+    );
+    Navigator.pop(
+      context,
+      widget.section.copyWith(
+        title: _titleController.text.trim().isEmpty ? widget.section.title : _titleController.text.trim(),
+        order: order.clamp(1, 999),
+        photosPrintSettings: photosPrintSettings,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Редактирование раздела «Фотографии»'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+          tooltip: 'Отмена',
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _saveAndPop,
+            tooltip: 'Сохранить',
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(context).padding.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Название раздела',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _orderController,
+              decoration: const InputDecoration(
+                labelText: 'Порядок (число)',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<int>(
+              initialValue: _photosPerRow,
+              decoration: const InputDecoration(
+                labelText: 'Фотографий в ряд',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 1, child: Text('1')),
+                DropdownMenuItem(value: 2, child: Text('2')),
+                DropdownMenuItem(value: 3, child: Text('3')),
+                DropdownMenuItem(value: 4, child: Text('4')),
+              ],
+              onChanged: (v) => setState(() => _photosPerRow = v ?? 2),
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: _saveAndPop,
+              child: const Text('Сохранить'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// VET-150: форма редактирования раздела «Таблица» — размерность, ячейки (поле ввода / статичный текст).
+class _TableSectionEditPage extends StatefulWidget {
+  final TemplateSection section;
+  final Set<String> keysUsedInOtherSections;
+
+  const _TableSectionEditPage({
+    required this.section,
+    this.keysUsedInOtherSections = const {},
+  });
+
+  @override
+  State<_TableSectionEditPage> createState() => _TableSectionEditPageState();
+}
+
+class _TableSectionEditPageState extends State<_TableSectionEditPage> {
+  late TextEditingController _titleController;
+  late TextEditingController _orderController;
+  late TextEditingController _rowsController;
+  late TextEditingController _colsController;
+  late List<TableCellConfig> _cells;
+
+  static const _fieldTypes = ['text', 'number', 'date', 'select', 'bool'];
+
+  @override
+  void initState() {
+    super.initState();
+    final tc = widget.section.tableConfig ?? const TableSectionConfig();
+    _titleController = TextEditingController(text: widget.section.title);
+    _orderController = TextEditingController(text: '${widget.section.order}');
+    _rowsController = TextEditingController(text: '${tc.tableRows}');
+    _colsController = TextEditingController(text: '${tc.tableCols}');
+    _cells = List.from(tc.cells);
+    _syncCellsToGrid();
+  }
+
+  void _syncCellsToGrid() {
+    final rCount = (int.tryParse(_rowsController.text) ?? 2).clamp(1, 20);
+    final cCount = (int.tryParse(_colsController.text) ?? 2).clamp(1, 10);
+    final map = <int, TableCellConfig>{};
+    for (final c in _cells) {
+      map[c.row * 100 + c.col] = c;
+    }
+    _cells = [];
+    for (var r = 0; r < rCount; r++) {
+      for (var c = 0; c < cCount; c++) {
+        _cells.add(map[r * 100 + c] ?? TableCellConfig(row: r, col: c));
+      }
+    }
+  }
+
+  int get _rows => (int.tryParse(_rowsController.text) ?? 2).clamp(1, 20);
+  int get _cols => (int.tryParse(_colsController.text) ?? 2).clamp(1, 10);
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _orderController.dispose();
+    _rowsController.dispose();
+    _colsController.dispose();
+    super.dispose();
+  }
+
+  TableCellConfig _getCell(int row, int col) {
+    for (final c in _cells) {
+      if (c.row == row && c.col == col) return c;
+    }
+    return TableCellConfig(row: row, col: col);
+  }
+
+  void _setCell(int row, int col, TableCellConfig cell) {
+    setState(() {
+      _cells.removeWhere((c) => c.row == row && c.col == col);
+      _cells.add(cell);
+    });
+  }
+
+  void _saveAndPop() {
+    final order = int.tryParse(_orderController.text.trim()) ?? widget.section.order;
+    final rows = _rows;
+    final cols = _cols;
+    _syncCellsToGrid();
+    final usedKeys = Set<String>.from(widget.keysUsedInOtherSections);
+    for (final c in _cells) {
+      if (!c.isInputField || c.key == null || c.key!.isEmpty) continue;
+      if (usedKeys.contains(c.key)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ключ «${c.key}» уже используется в этом шаблоне. Задайте уникальный ключ ячейке.'),
+          ),
+        );
+        return;
+      }
+      usedKeys.add(c.key!);
+    }
+    final config = TableSectionConfig(
+      tableRows: rows,
+      tableCols: cols,
+      cells: _cells,
+      mergeRegions: widget.section.tableConfig?.mergeRegions ?? [],
+    );
+    Navigator.pop(
+      context,
+      widget.section.copyWith(
+        title: _titleController.text.trim().isEmpty ? widget.section.title : _titleController.text.trim(),
+        order: order.clamp(1, 999),
+        tableConfig: config,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _rows;
+    final cols = _cols;
+    if (_cells.length != rows * cols) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _syncCellsToGrid());
+      });
+    }
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Редактирование раздела «Таблица»'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+          tooltip: 'Отмена',
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _saveAndPop,
+            tooltip: 'Сохранить',
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(context).padding.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Название раздела',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _orderController,
+              decoration: const InputDecoration(labelText: 'Порядок', border: OutlineInputBorder()),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _rowsController,
+                    decoration: const InputDecoration(labelText: 'Строк', border: OutlineInputBorder()),
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextField(
+                    controller: _colsController,
+                    decoration: const InputDecoration(labelText: 'Столбцов', border: OutlineInputBorder()),
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text('Ячейки (для каждой: поле ввода или статичный текст)', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            ...List.generate(rows * cols, (i) {
+              final r = i ~/ cols;
+              final c = i % cols;
+              final cell = _getCell(r, c);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _TableCellEditor(
+                  row: r,
+                  col: c,
+                  cell: cell,
+                  onChanged: (newCell) => _setCell(r, c, newCell),
+                  fieldTypes: _fieldTypes,
+                ),
+              );
+            }),
+            const SizedBox(height: 24),
+            FilledButton(onPressed: _saveAndPop, child: const Text('Сохранить')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TableCellEditor extends StatelessWidget {
+  const _TableCellEditor({
+    required this.row,
+    required this.col,
+    required this.cell,
+    required this.onChanged,
+    required this.fieldTypes,
+  });
+
+  final int row;
+  final int col;
+  final TableCellConfig cell;
+  final void Function(TableCellConfig) onChanged;
+  final List<String> fieldTypes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Row(
+          children: [
+            Text('[$row,$col]', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(width: 8),
+            CheckboxListTile(
+              title: const Text('Поле ввода'),
+              value: cell.isInputField,
+              onChanged: (v) => onChanged(TableCellConfig(
+                row: row,
+                col: col,
+                isInputField: v ?? false,
+                fieldType: cell.fieldType,
+                key: cell.key,
+                label: cell.label,
+                staticText: cell.staticText,
+                imageRef: cell.imageRef,
+              )),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+            ),
+            if (cell.isInputField)
+              DropdownButton<String>(
+                value: cell.fieldType ?? 'text',
+                items: fieldTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                onChanged: (v) => onChanged(TableCellConfig(
+                  row: row,
+                  col: col,
+                  isInputField: true,
+                  fieldType: v ?? 'text',
+                  key: cell.key ?? 'cell_${row}_$col',
+                  label: cell.label ?? '',
+                  staticText: cell.staticText,
+                  imageRef: cell.imageRef,
+                )),
+              )
+            else
+              SizedBox(
+                width: 120,
+                child: TextFormField(
+                  decoration: const InputDecoration(isDense: true, hintText: 'Текст'),
+                  initialValue: cell.staticText ?? '',
+                  onChanged: (v) => onChanged(TableCellConfig(
+                    row: row,
+                    col: col,
+                    isInputField: false,
+                    staticText: v.isEmpty ? null : v,
+                    imageRef: cell.imageRef,
+                  )),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1094,11 +1556,15 @@ class _BorderSelector extends StatelessWidget {
   }
 }
 
-/// VET-112: форма редактирования раздела на весь экран.
+/// VET-112: форма редактирования раздела на весь экран. Уникальность ключей в рамках шаблона.
 class _SectionEditPage extends StatefulWidget {
   final TemplateSection section;
+  final Set<String> keysUsedInOtherSections;
 
-  const _SectionEditPage({required this.section});
+  const _SectionEditPage({
+    required this.section,
+    this.keysUsedInOtherSections = const {},
+  });
 
   @override
   State<_SectionEditPage> createState() => _SectionEditPageState();
@@ -1116,6 +1582,14 @@ class _SectionEditPageState extends State<_SectionEditPage> {
   final List<TextEditingController> _rangeUnitControllers = [];
   final List<bool> _fieldAutoGrowHeight = [];
   final List<String> _fieldBorder = []; // VET-107: 'none' | 'rectangular' | 'rounded'
+  /// VET-153: для полей типа «Фото» — фото в ряд (1–4).
+  final List<int> _fieldPhotosPerRow = [];
+  /// VET-158, VET-160: отображать подпись на печати (для типа «Фото» по умолчанию false).
+  final List<bool> _fieldShowLabel = [];
+  /// VET-159: расположение подписи — before | above | inline.
+  final List<String> _fieldLabelPosition = [];
+  final List<bool> _fieldLabelBold = [];
+  final List<bool> _fieldLabelItalic = [];
   // VET-068: настройки печатной формы (стиль; позиция/размер — в визуальном редакторе)
   late TextEditingController _printFontSizeController;
   bool _printBold = false;
@@ -1147,6 +1621,11 @@ class _SectionEditPageState extends State<_SectionEditPage> {
       _rangeUnitControllers.add(TextEditingController());
       _fieldAutoGrowHeight.add(false);
       _fieldBorder.add('none');
+      _fieldPhotosPerRow.add(2);
+      _fieldShowLabel.add(true);
+      _fieldLabelPosition.add('before');
+      _fieldLabelBold.add(false);
+      _fieldLabelItalic.add(false);
     } else {
       for (final f in fields) {
         _keyControllers.add(TextEditingController(text: f.key));
@@ -1166,11 +1645,18 @@ class _SectionEditPageState extends State<_SectionEditPage> {
         _fieldBorder.add(ps?.showBorder == true
             ? (ps!.borderShape == 'rounded' ? 'rounded' : 'rectangular')
             : 'none');
+        _fieldPhotosPerRow.add(f.type == 'photo'
+            ? (ps?.photosPerRow ?? 2).clamp(1, 4)
+            : 2);
+        _fieldShowLabel.add(ps?.showLabel ?? (f.type == 'photo' ? false : true));
+        _fieldLabelPosition.add(ps?.labelPosition ?? 'before');
+        _fieldLabelBold.add(ps?.labelBold ?? false);
+        _fieldLabelItalic.add(ps?.labelItalic ?? false);
       }
     }
   }
 
-  static const _typeList = ['text', 'number', 'date', 'select', 'multiselect', 'bool', 'reference', 'range'];
+  static const _typeList = ['text', 'number', 'date', 'select', 'multiselect', 'bool', 'reference', 'range', 'photo'];
   static const _referenceTypeList = ['species', 'rhythm', 'murmurs'];
 
   @override
@@ -1197,8 +1683,16 @@ class _SectionEditPageState extends State<_SectionEditPage> {
   }
 
   void _addField() {
+    final used = Set<String>.from(widget.keysUsedInOtherSections);
+    for (final c in _keyControllers) {
+      final k = c.text.trim();
+      if (k.isNotEmpty) used.add(k);
+    }
+    var n = 1;
+    while (used.contains('field_$n')) {
+      n++;
+    }
     setState(() {
-      final n = _keyControllers.length + 1;
       _keyControllers.add(TextEditingController(text: 'field_$n'));
       _labelControllers.add(TextEditingController(text: 'Поле $n'));
       _types.add('text');
@@ -1208,6 +1702,11 @@ class _SectionEditPageState extends State<_SectionEditPage> {
       _rangeUnitControllers.add(TextEditingController());
       _fieldAutoGrowHeight.add(false);
       _fieldBorder.add('none');
+      _fieldPhotosPerRow.add(2);
+      _fieldShowLabel.add(true);
+      _fieldLabelPosition.add('before');
+      _fieldLabelBold.add(false);
+      _fieldLabelItalic.add(false);
     });
   }
 
@@ -1228,12 +1727,94 @@ class _SectionEditPageState extends State<_SectionEditPage> {
       _rangeUnitControllers.removeAt(i);
       _fieldAutoGrowHeight.removeAt(i);
       _fieldBorder.removeAt(i);
+      _fieldPhotosPerRow.removeAt(i);
+      _fieldShowLabel.removeAt(i);
+      _fieldLabelPosition.removeAt(i);
+      _fieldLabelBold.removeAt(i);
+      _fieldLabelItalic.removeAt(i);
     });
+  }
+
+  /// VET-154: переместить поле вверх по списку.
+  void _moveFieldUp(int i) {
+    if (i <= 0) return;
+    setState(() {
+      _swapFields(i, i - 1);
+    });
+  }
+
+  /// VET-154: переместить поле вниз по списку.
+  void _moveFieldDown(int i) {
+    if (i >= _keyControllers.length - 1) return;
+    setState(() {
+      _swapFields(i, i + 1);
+    });
+  }
+
+  void _swapFields(int i, int j) {
+    if (i == j) return;
+    final keyC = _keyControllers[i];
+    _keyControllers[i] = _keyControllers[j];
+    _keyControllers[j] = keyC;
+    final labelC = _labelControllers[i];
+    _labelControllers[i] = _labelControllers[j];
+    _labelControllers[j] = labelC;
+    final t = _types[i];
+    _types[i] = _types[j];
+    _types[j] = t;
+    final refT = _referenceTypes[i];
+    _referenceTypes[i] = _referenceTypes[j];
+    _referenceTypes[j] = refT;
+    final rangeMinC = _rangeMinControllers[i];
+    _rangeMinControllers[i] = _rangeMinControllers[j];
+    _rangeMinControllers[j] = rangeMinC;
+    final rangeMaxC = _rangeMaxControllers[i];
+    _rangeMaxControllers[i] = _rangeMaxControllers[j];
+    _rangeMaxControllers[j] = rangeMaxC;
+    final rangeUnitC = _rangeUnitControllers[i];
+    _rangeUnitControllers[i] = _rangeUnitControllers[j];
+    _rangeUnitControllers[j] = rangeUnitC;
+    final autoGrow = _fieldAutoGrowHeight[i];
+    _fieldAutoGrowHeight[i] = _fieldAutoGrowHeight[j];
+    _fieldAutoGrowHeight[j] = autoGrow;
+    final border = _fieldBorder[i];
+    _fieldBorder[i] = _fieldBorder[j];
+    _fieldBorder[j] = border;
+    final photosPerRow = _fieldPhotosPerRow[i];
+    _fieldPhotosPerRow[i] = _fieldPhotosPerRow[j];
+    _fieldPhotosPerRow[j] = photosPerRow;
+    final showLabel = _fieldShowLabel[i];
+    _fieldShowLabel[i] = _fieldShowLabel[j];
+    _fieldShowLabel[j] = showLabel;
+    final labelPos = _fieldLabelPosition[i];
+    _fieldLabelPosition[i] = _fieldLabelPosition[j];
+    _fieldLabelPosition[j] = labelPos;
+    final labelBold = _fieldLabelBold[i];
+    _fieldLabelBold[i] = _fieldLabelBold[j];
+    _fieldLabelBold[j] = labelBold;
+    final labelItalic = _fieldLabelItalic[i];
+    _fieldLabelItalic[i] = _fieldLabelItalic[j];
+    _fieldLabelItalic[j] = labelItalic;
   }
 
   void _saveAndPop() {
     final order = int.tryParse(_orderController.text.trim()) ?? _section.order;
     final existingFields = _section.fields;
+    final keysInThisSection = <String>[];
+    for (var i = 0; i < _keyControllers.length; i++) {
+      final key = _keyControllers[i].text.trim().isEmpty ? 'field_$i' : _keyControllers[i].text.trim();
+      if (key.isNotEmpty) {
+        if (keysInThisSection.contains(key) || widget.keysUsedInOtherSections.contains(key)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Ключ «$key» уже используется в этом шаблоне. Задайте уникальный ключ.'),
+            ),
+          );
+          return;
+        }
+        keysInThisSection.add(key);
+      }
+    }
     final newFields = <TemplateField>[];
     for (var i = 0; i < _keyControllers.length; i++) {
       final key = _keyControllers[i].text.trim().isEmpty ? 'field_$i' : _keyControllers[i].text.trim();
@@ -1272,6 +1853,11 @@ class _SectionEditPageState extends State<_SectionEditPage> {
           autoGrowHeight: _fieldAutoGrowHeight[i],
           showBorder: _fieldBorder[i] != 'none',
           borderShape: _fieldBorder[i] == 'rounded' ? 'rounded' : 'rectangular',
+          photosPerRow: _types[i] == 'photo' ? _fieldPhotosPerRow[i] : null,
+          showLabel: _fieldShowLabel[i],
+          labelPosition: _fieldLabelPosition[i],
+          labelBold: _fieldLabelBold[i],
+          labelItalic: _fieldLabelItalic[i],
         ),
       ));
     }
@@ -1300,6 +1886,9 @@ class _SectionEditPageState extends State<_SectionEditPage> {
         order: order.clamp(1, 999),
         fields: newFields,
         printSettings: printSettings,
+        sectionKind: _section.sectionKind,
+        photosPrintSettings: _section.photosPrintSettings,
+        tableConfig: _section.tableConfig,
       ),
     );
   }
@@ -1385,6 +1974,58 @@ class _SectionEditPageState extends State<_SectionEditPage> {
                               ),
                             ),
                             const SizedBox(height: 8),
+                            Builder(
+                              builder: (context) {
+                                final theme = Theme.of(context);
+                                return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Отображать подпись на печати',
+                                      icon: Icon(
+                                        _fieldShowLabel[i] ? Icons.visibility : Icons.visibility_off,
+                                        color: _fieldShowLabel[i] ? theme.colorScheme.primary : null,
+                                      ),
+                                      style: _fieldShowLabel[i]
+                                          ? IconButton.styleFrom(backgroundColor: theme.colorScheme.primaryContainer)
+                                          : null,
+                                      onPressed: () => setState(() => _fieldShowLabel[i] = !_fieldShowLabel[i]),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Жирным',
+                                      icon: Icon(
+                                        Icons.format_bold,
+                                        color: _fieldLabelBold[i] ? theme.colorScheme.primary : null,
+                                      ),
+                                      style: _fieldLabelBold[i]
+                                          ? IconButton.styleFrom(backgroundColor: theme.colorScheme.primaryContainer)
+                                          : null,
+                                      onPressed: () => setState(() => _fieldLabelBold[i] = !_fieldLabelBold[i]),
+                                    ),
+                                    // VET-171: «Курсивом» скрыт (работает некорректно).
+                                  ],
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 4),
+                            Text('Расположение подписи на печати', style: Theme.of(context).textTheme.bodySmall),
+                            const SizedBox(height: 4),
+                            DropdownButtonFormField<String>(
+                              initialValue: _fieldLabelPosition[i],
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: 'before', child: Text('Перед полем')),
+                                DropdownMenuItem(value: 'above', child: Text('Над полем')),
+                                DropdownMenuItem(value: 'inline', child: Text('В начале текста поля')),
+                              ],
+                              onChanged: (v) {
+                                if (v != null) setState(() => _fieldLabelPosition[i] = v);
+                              },
+                            ),
+                            const SizedBox(height: 8),
                             Text('Тип', style: Theme.of(context).textTheme.bodySmall),
                             const SizedBox(height: 4),
                             DropdownButtonFormField<String>(
@@ -1400,6 +2041,9 @@ class _SectionEditPageState extends State<_SectionEditPage> {
                                     _types[i] = v;
                                     if (v == 'reference' && _referenceTypes[i] == null) {
                                       _referenceTypes[i] = _referenceTypeList.first;
+                                    }
+                                    if (v == 'photo') {
+                                      _fieldShowLabel[i] = false;
                                     }
                                   });
                                 }
@@ -1422,6 +2066,27 @@ class _SectionEditPageState extends State<_SectionEditPage> {
                                     .toList(),
                                 onChanged: (v) {
                                   if (v != null) setState(() => _referenceTypes[i] = v);
+                                },
+                              ),
+                            ],
+                            if (_types[i] == 'photo') ...[
+                              const SizedBox(height: 8),
+                              Text('Фото в ряд (печать)', style: Theme.of(context).textTheme.bodySmall),
+                              const SizedBox(height: 4),
+                              DropdownButtonFormField<int>(
+                                initialValue: _fieldPhotosPerRow[i].clamp(1, 4),
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: const [
+                                  DropdownMenuItem(value: 1, child: Text('1')),
+                                  DropdownMenuItem(value: 2, child: Text('2')),
+                                  DropdownMenuItem(value: 3, child: Text('3')),
+                                  DropdownMenuItem(value: 4, child: Text('4')),
+                                ],
+                                onChanged: (v) {
+                                  if (v != null) setState(() => _fieldPhotosPerRow[i] = v);
                                 },
                               ),
                             ],
@@ -1480,10 +2145,25 @@ class _SectionEditPageState extends State<_SectionEditPage> {
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline),
-                        onPressed: _keyControllers.length > 1 ? () => _removeField(i) : null,
-                        tooltip: 'Удалить поле',
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_upward),
+                            onPressed: i > 0 ? () => _moveFieldUp(i) : null,
+                            tooltip: 'Поднять поле',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.arrow_downward),
+                            onPressed: i < _keyControllers.length - 1 ? () => _moveFieldDown(i) : null,
+                            tooltip: 'Опустить поле',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: _keyControllers.length > 1 ? () => _removeField(i) : null,
+                            tooltip: 'Удалить поле',
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1522,13 +2202,11 @@ class _SectionEditPageState extends State<_SectionEditPage> {
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
                         const SizedBox(height: 8),
+                        // VET-171: «Курсив» скрыт (работает некорректно).
                         Row(
                           children: [
                             Checkbox(value: _printBold, onChanged: (v) => setState(() => _printBold = v ?? false)),
                             const Text('Жирный'),
-                            const SizedBox(width: 16),
-                            Checkbox(value: _printItalic, onChanged: (v) => setState(() => _printItalic = v ?? false)),
-                            const Text('Курсив'),
                           ],
                         ),
                         const SizedBox(height: 8),

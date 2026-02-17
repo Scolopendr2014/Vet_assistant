@@ -2,7 +2,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../../templates/domain/entities/protocol_template.dart';
+import '../../../templates/domain/entities/protocol_template.dart'
+    show
+        sectionKindPhotos,
+        AnamnesisPrintSettings,
+        ProtocolHeaderPrintSettings,
+        PhotosPrintSettings,
+        SectionPrintSettings,
+        TemplateSection;
 
 /// Размеры A4 в мм (VET-068).
 const double _a4WidthMm = 210;
@@ -14,12 +21,11 @@ const double _gridStepPx = 10;
 /// Ширина зоны у грани блока для ресайза одним пальцем (VET-098), в пикселях превью.
 const double _edgeResizeZonePx = 16;
 
-/// Результат сохранения визуального редактора.
+/// Результат сохранения визуального редактора. VET-149: фото-разделы входят в sections.
 typedef PrintLayoutSaveResult = ({
   List<TemplateSection> sections,
   ProtocolHeaderPrintSettings? headerPrintSettings,
   AnamnesisPrintSettings? anamnesisPrintSettings,
-  PhotosPrintSettings? photosPrintSettings,
 });
 
 /// Описание блока: тип, индекс, rect (мм), pageIndex.
@@ -74,14 +80,12 @@ class PrintLayoutEditorPage extends StatefulWidget {
     required this.onSave,
     this.headerPrintSettings,
     this.anamnesisPrintSettings,
-    this.photosPrintSettings,
   });
 
   final List<TemplateSection> sections;
   final void Function(PrintLayoutSaveResult result) onSave;
   final ProtocolHeaderPrintSettings? headerPrintSettings;
   final AnamnesisPrintSettings? anamnesisPrintSettings;
-  final PhotosPrintSettings? photosPrintSettings;
 
   @override
   State<PrintLayoutEditorPage> createState() => _PrintLayoutEditorPageState();
@@ -130,20 +134,30 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
       pageIndex: a?.pageIndex ?? 0,
     ));
 
-    final p = widget.photosPrintSettings;
-    final photosRect = p != null && p.positionX != null && p.positionY != null &&
-            p.width != null && p.height != null
-        ? RectMm(p.positionX!, p.positionY!, p.width!, p.height!)
-        : RectMm(15, 145, 180, 80);
-    list.add(_BlockInfo(
-      type: _BlockType.photos,
-      index: 0,
-      rect: photosRect,
-      pageIndex: p?.pageIndex ?? 1,
-    ));
+    // VET-149: один блок на каждый раздел «Фотографии» (настройки из section.photosPrintSettings).
+    var photosBlockIndex = 0;
+    for (var i = 0; i < widget.sections.length; i++) {
+      final sec = widget.sections[i];
+      if (sec.sectionKind != sectionKindPhotos) continue;
+      final p = sec.photosPrintSettings;
+      final photosRect = p != null && p.positionX != null && p.positionY != null &&
+              p.width != null && p.height != null
+          ? RectMm(p.positionX!, p.positionY!, p.width!, p.height!)
+          : RectMm(15.0 + (photosBlockIndex % 2) * 95, 145.0 + (photosBlockIndex ~/ 2) * 45, 90, 40);
+      list.add(_BlockInfo(
+        type: _BlockType.photos,
+        index: i,
+        rect: photosRect,
+        pageIndex: p?.pageIndex ?? 1,
+        section: sec,
+      ));
+      photosBlockIndex++;
+    }
 
     for (var i = 0; i < widget.sections.length; i++) {
-      final ps = widget.sections[i].printSettings;
+      final sec = widget.sections[i];
+      if (sec.sectionKind == sectionKindPhotos) continue;
+      final ps = sec.printSettings;
       final rect = ps != null &&
               ps.positionX != null &&
               ps.positionY != null &&
@@ -156,7 +170,7 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
         index: i,
         rect: rect,
         pageIndex: ps?.pageIndex ?? 1,
-        section: widget.sections[i],
+        section: sec,
       ));
     }
 
@@ -220,7 +234,7 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
     for (var i = 0; i < widget.sections.length; i++) {
       _BlockInfo? block;
       for (final b in _blocks) {
-        if (b.type == _BlockType.section && b.index == i) {
+        if ((b.type == _BlockType.section || b.type == _BlockType.photos) && b.index == i) {
           block = b;
           break;
         }
@@ -231,25 +245,36 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
       }
       final r = block.rect;
       _clampToPage(r);
-      final ps = widget.sections[i].printSettings;
-      updatedSections.add(TemplateSection(
-        id: widget.sections[i].id,
-        title: widget.sections[i].title,
-        order: widget.sections[i].order,
-        fields: widget.sections[i].fields,
-        printSettings: SectionPrintSettings(
-          positionX: r.left,
-          positionY: r.top,
-          width: r.width,
-          height: r.height,
-          pageIndex: block.pageIndex,
-          fontSize: ps?.fontSize,
-          bold: ps?.bold ?? false,
-          italic: ps?.italic ?? false,
-          showBorder: ps?.showBorder ?? false,
-          borderShape: ps?.borderShape ?? 'rectangular',
-        ),
-      ));
+      final sec = widget.sections[i];
+      if (sec.sectionKind == sectionKindPhotos) {
+        final prev = sec.photosPrintSettings;
+        updatedSections.add(sec.copyWith(
+          photosPrintSettings: PhotosPrintSettings(
+            positionX: r.left,
+            positionY: r.top,
+            width: r.width,
+            height: r.height,
+            pageIndex: block.pageIndex,
+            photosPerRow: prev?.photosPerRow ?? 2,
+          ),
+        ));
+      } else {
+        final ps = sec.printSettings;
+        updatedSections.add(sec.copyWith(
+          printSettings: SectionPrintSettings(
+            positionX: r.left,
+            positionY: r.top,
+            width: r.width,
+            height: r.height,
+            pageIndex: block.pageIndex,
+            fontSize: ps?.fontSize,
+            bold: ps?.bold ?? false,
+            italic: ps?.italic ?? false,
+            showBorder: ps?.showBorder ?? false,
+            borderShape: ps?.borderShape ?? 'rectangular',
+          ),
+        ));
+      }
     }
 
     _BlockInfo? headerBlock;
@@ -302,29 +327,10 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
       pageIndex: anamBlock?.pageIndex ?? 0,
     );
 
-    _BlockInfo? photosBlock;
-    for (final b in _blocks) {
-      if (b.type == _BlockType.photos) {
-        photosBlock = b;
-        break;
-      }
-    }
-    final photosRect = photosBlock?.rect ?? RectMm(15, 145, 180, 80);
-    _clampToPage(photosRect);
-    final photos = PhotosPrintSettings(
-      positionX: photosRect.left,
-      positionY: photosRect.top,
-      width: photosRect.width,
-      height: photosRect.height,
-      pageIndex: photosBlock?.pageIndex ?? 1,
-      photosPerRow: widget.photosPrintSettings?.photosPerRow,
-    );
-
     widget.onSave((
       sections: updatedSections,
       headerPrintSettings: header,
       anamnesisPrintSettings: anamnesis,
-      photosPrintSettings: photos,
     ));
     if (mounted) Navigator.of(context).pop();
   }
@@ -481,6 +487,136 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
     );
   }
 
+  /// VET-151: сетка ячеек таблицы в визуальном редакторе (размеры в мм, объединения не отрисовываем в превью).
+  Widget _buildTableBlockContent(
+    BuildContext context,
+    String title,
+    Color color,
+    double widthPx,
+    double heightPx,
+    TemplateSection section,
+    double scale,
+  ) {
+    final tc = section.tableConfig;
+    if (tc == null) {
+      return Text(
+        title,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: color.withValues(alpha: 1),
+              fontWeight: FontWeight.w600,
+            ),
+      );
+    }
+    const titleHeight = 22.0;
+    final rows = tc.tableRows.clamp(1, 20);
+    final cols = tc.tableCols.clamp(1, 10);
+    final availableW = widthPx - 12;
+    final availableH = heightPx - titleHeight - 12;
+    final colWidths = List.generate(cols, (c) {
+      if (tc.columnWidthsMm != null && c < tc.columnWidthsMm!.length) {
+        return (tc.columnWidthsMm![c] * scale).clamp(8.0, availableW);
+      }
+      return availableW / cols;
+    });
+    final rowHeights = List.generate(rows, (r) {
+      if (tc.rowHeightsMm != null && r < tc.rowHeightsMm!.length) {
+        return (tc.rowHeightsMm![r] * scale).clamp(8.0, availableH);
+      }
+      return availableH / rows;
+    });
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: color.withValues(alpha: 1),
+                fontWeight: FontWeight.w600,
+              ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 4),
+        ...List.generate(rows, (r) {
+          final h = r < rowHeights.length ? rowHeights[r].clamp(4.0, 80.0) : availableH / rows;
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(cols, (c) {
+              final w = c < colWidths.length ? colWidths[c].clamp(4.0, 100.0) : availableW / cols;
+              return Container(
+                width: w,
+                height: h,
+                decoration: BoxDecoration(
+                  border: Border.all(color: color.withValues(alpha: 0.7)),
+                ),
+              );
+            }),
+          );
+        }),
+      ],
+    );
+  }
+
+  /// VET-152: схематичная сетка фото в блоке раздела «Фотографии» по настройке «фото в ряд».
+  Widget _buildPhotosBlockContent(
+    BuildContext context,
+    String title,
+    Color color,
+    double widthPx,
+    double heightPx,
+    int photosPerRow,
+  ) {
+    const int placeholderRows = 2;
+    final cols = photosPerRow.clamp(1, 4);
+    const gap = 4.0;
+    final availableW = widthPx - 12;
+    final availableH = heightPx - 28;
+    final cellW = availableW > 0 && cols > 0
+        ? (availableW - (cols - 1) * gap) / cols
+        : 24.0;
+    final cellH = availableH > 0 && placeholderRows > 0
+        ? (availableH - (placeholderRows - 1) * gap) / placeholderRows
+        : 20.0;
+    final cells = <Widget>[];
+    for (var row = 0; row < placeholderRows; row++) {
+      for (var col = 0; col < cols; col++) {
+        cells.add(
+          Container(
+            width: cellW.clamp(8.0, 80.0),
+            height: cellH.clamp(8.0, 60.0),
+            decoration: BoxDecoration(
+              border: Border.all(color: color.withValues(alpha: 0.8)),
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: Icon(Icons.photo_outlined, size: (cellW.clamp(8.0, 80.0) * 0.4).clamp(8.0, 24.0), color: color.withValues(alpha: 0.6)),
+          ),
+        );
+      }
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: color.withValues(alpha: 1),
+                fontWeight: FontWeight.w600,
+              ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: cells,
+        ),
+      ],
+    );
+  }
+
   Widget _buildBlock(
     int blockIdx,
     _BlockInfo block,
@@ -510,7 +646,7 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
         color = Colors.orange;
         break;
       case _BlockType.photos:
-        title = 'Фотографии';
+        title = block.section?.title ?? 'Фотографии';
         color = Colors.purple;
         break;
       case _BlockType.section:
@@ -678,15 +814,34 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(6),
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: color.withValues(alpha: 1),
-                          fontWeight: FontWeight.w600,
-                        ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: block.type == _BlockType.photos
+                      ? _buildPhotosBlockContent(
+                          context,
+                          title,
+                          color,
+                          width,
+                          height,
+                          (block.section?.photosPrintSettings?.photosPerRow ?? 2).clamp(1, 4),
+                        )
+                      : block.type == _BlockType.section && block.section?.isTableSection == true
+                          ? _buildTableBlockContent(
+                              context,
+                              title,
+                              color,
+                              width,
+                              height,
+                              block.section!,
+                              scale,
+                            )
+                          : Text(
+                              title,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    color: color.withValues(alpha: 1),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                 ),
               ),
               // VET-095, VET-098: при ресайзе показывать размер в виде рамки

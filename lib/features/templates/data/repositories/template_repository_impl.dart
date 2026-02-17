@@ -38,7 +38,12 @@ class TemplateRepositoryImpl implements TemplateRepository {
       if (rows.isNotEmpty) {
         final row = rows.single;
         final map = jsonDecode(row.read<String>('content')) as Map<String, dynamic>;
-        return ProtocolTemplate.fromJson(map);
+        var template = ProtocolTemplate.fromJson(map);
+        if (template.hasDuplicateFieldKeys) {
+          template = template.ensureUniqueFieldKeys();
+          await saveTemplate(template);
+        }
+        return template;
       }
     } catch (_) {
       // БД без колонки is_active (schema < 4) — выборка по type
@@ -46,7 +51,12 @@ class TemplateRepositoryImpl implements TemplateRepository {
           .getSingleOrNull();
       if (row != null) {
         final map = jsonDecode(row.content) as Map<String, dynamic>;
-        return ProtocolTemplate.fromJson(map);
+        var template = ProtocolTemplate.fromJson(map);
+        if (template.hasDuplicateFieldKeys) {
+          template = template.ensureUniqueFieldKeys();
+          await saveTemplate(template);
+        }
+        return template;
       }
     }
     return _loadFromAsset(id);
@@ -59,7 +69,12 @@ class TemplateRepositoryImpl implements TemplateRepository {
         .getSingleOrNull();
     if (row != null) {
       final map = jsonDecode(row.content) as Map<String, dynamic>;
-      return ProtocolTemplate.fromJson(map);
+      var template = ProtocolTemplate.fromJson(map);
+      if (template.hasDuplicateFieldKeys) {
+        template = template.ensureUniqueFieldKeys();
+        await saveTemplate(template);
+      }
+      return template;
     }
     return null;
   }

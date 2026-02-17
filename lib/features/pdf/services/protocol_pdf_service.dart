@@ -13,18 +13,29 @@ import '../../templates/domain/entities/protocol_template.dart';
 import '../../vet_profile/domain/entities/vet_clinic.dart';
 import '../../vet_profile/domain/entities/vet_profile.dart';
 
-/// Шрифты с кириллицей для PDF (VET-001). Кэш в памяти.
+/// Шрифты с кириллицей для PDF (VET-001). Кэш в памяти. VET-162: italic для подписей полей.
 pw.Font? _pdfFontRegular;
 pw.Font? _pdfFontBold;
+pw.Font? _pdfFontItalic;
 
 Future<void> _loadPdfFonts() async {
   if (_pdfFontRegular != null) return;
   ByteData? regularData;
   ByteData? boldData;
+  ByteData? italicData;
   try {
     regularData = await rootBundle.load('assets/fonts/Roboto-Regular.ttf');
     boldData = await rootBundle.load('assets/fonts/Roboto-Bold.ttf');
+    italicData = await rootBundle.load('assets/fonts/Roboto-Italic.ttf');
   } catch (_) {}
+  final italicUris = [
+    Uri.parse(
+      'https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Italic.ttf',
+    ),
+    Uri.parse(
+      'https://cdn.jsdelivr.net/gh/google/fonts@main/apache/roboto/Roboto-Italic.ttf',
+    ),
+  ];
   if (regularData == null || boldData == null) {
     final urisList = [
       [
@@ -50,9 +61,22 @@ Future<void> _loadPdfFonts() async {
           http.get(uris[0]).timeout(const Duration(seconds: 15)),
           http.get(uris[1]).timeout(const Duration(seconds: 15)),
         ]);
-        if (responses[0].statusCode == 200 && responses[1].statusCode == 200) {
-          regularData = ByteData.sublistView(Uint8List.fromList(responses[0].bodyBytes));
-          boldData = ByteData.sublistView(Uint8List.fromList(responses[1].bodyBytes));
+        if (responses[0].statusCode == 200) {
+          regularData ??= ByteData.sublistView(Uint8List.fromList(responses[0].bodyBytes));
+        }
+        if (responses[1].statusCode == 200) {
+          boldData ??= ByteData.sublistView(Uint8List.fromList(responses[1].bodyBytes));
+        }
+        if (regularData != null && boldData != null) break;
+      } catch (_) {}
+    }
+  }
+  if (italicData == null) {
+    for (final uri in italicUris) {
+      try {
+        final response = await http.get(uri).timeout(const Duration(seconds: 15));
+        if (response.statusCode == 200) {
+          italicData = ByteData.sublistView(Uint8List.fromList(response.bodyBytes));
           break;
         }
       } catch (_) {}
@@ -60,10 +84,24 @@ Future<void> _loadPdfFonts() async {
   }
   if (regularData != null) _pdfFontRegular = pw.Font.ttf(regularData);
   if (boldData != null) _pdfFontBold = pw.Font.ttf(boldData);
+  if (italicData != null) _pdfFontItalic = pw.Font.ttf(italicData);
 }
 
 /// 1 мм в пунктах (pt) для PDF.
 double _mmToPt(double mm) => mm * 2.834645669;
+
+/// VET-149: настройки блока «Фотографии» — из последнего раздела с видом «Фотографии» или из template.photosPrintSettings (обратная совместимость). Фото выводим внизу протокола после всех разделов.
+PhotosPrintSettings? _effectivePhotosPrintSettings(ProtocolTemplate? template) {
+  if (template == null) return null;
+  final photoSections = template.sections
+      .where((s) => s.sectionKind == sectionKindPhotos)
+      .toList();
+  if (photoSections.isNotEmpty) {
+    final last = photoSections.last;
+    if (last.photosPrintSettings != null) return last.photosPrintSettings;
+  }
+  return template.photosPrintSettings;
+}
 
 /// VET-103: оборачивает виджет в рамку при showBorder; borderShape: 'rounded' или 'rectangular'.
 pw.Widget _wrapWithBorder(pw.Widget child, {required bool showBorder, String borderShape = 'rectangular'}) {
@@ -76,6 +114,43 @@ pw.Widget _wrapWithBorder(pw.Widget child, {required bool showBorder, String bor
     padding: const pw.EdgeInsets.all(4),
     child: child,
   );
+}
+
+/// VET-159, VET-160, VET-162: стиль подписи поля (жирный/курсив) для печати.
+/// С TTF нужны явные шрифты: fontStyle.italic не даёт курсива для кастомного шрифта.
+/// Явно задаём font и fontSize, сбрасываем fontStyle раздела, чтобы применить только настройки подписи.
+pw.TextStyle _fieldLabelStyle(pw.TextStyle cellStyle, pw.Font? fontBold, bool labelBold, bool labelItalic) {
+  final fontSize = cellStyle.fontSize ?? 11.0;
+  pw.Font? font;
+  if (labelItalic && _pdfFontItalic != null) {
+    font = _pdfFontItalic;
+  } else if (labelBold && fontBold != null) {
+    font = fontBold;
+  }
+  if (font != null) {
+    return pw.TextStyle(
+      font: font,
+      fontSize: fontSize,
+      fontStyle: pw.FontStyle.normal,
+    );
+  }
+  if (labelItalic) {
+    return cellStyle.copyWith(fontStyle: pw.FontStyle.italic);
+  }
+  return cellStyle;
+}
+
+/// VET-168: при курсиве с TTF нужен явный шрифт; fontStyle.italic не даёт курсива.
+pw.TextStyle _withItalicFont(pw.TextStyle base, bool useItalic) {
+  if (!useItalic) return base;
+  if (_pdfFontItalic != null) {
+    return pw.TextStyle(
+      font: _pdfFontItalic!,
+      fontSize: base.fontSize ?? 11,
+      fontStyle: pw.FontStyle.normal,
+    );
+  }
+  return base.copyWith(fontStyle: pw.FontStyle.italic);
 }
 
 /// Проверяет, нужно ли использовать абсолютное позиционирование разделов (все разделы с данными имеют position/size).
@@ -96,8 +171,9 @@ bool _usePositionedLayout(ProtocolTemplate? template, Map<String, dynamic> extra
   return hasAnySectionWithData;
 }
 
-/// Результат построения шапки: заголовок (если есть) и остальные элементы (VET-096).
-({pw.Widget? title, List<pw.Widget> body}) _buildHeaderWidgets(
+/// Результат построения шапки: заголовок (если есть), элементы body и стиль значений (VET-096, VET-165).
+/// VET-165: наименования элементов шапки всегда жирным; настройки стиля (размер, жирный, курсив) — только к значениям полей и тексту анамнеза.
+({pw.Widget? title, List<pw.Widget> body, pw.TextStyle? valueStyle}) _buildHeaderWidgets(
   Examination examination,
   String? patientName,
   String? patientOwner,
@@ -116,37 +192,85 @@ bool _usePositionedLayout(ProtocolTemplate? template, Map<String, dynamic> extra
   final showPatient = h?.showPatient ?? true;
   final showOwner = h?.showOwner ?? true;
 
-  final baseFont = useBold ? (fontBold ?? font) : font;
-  pw.TextStyle headerStyle = baseFont != null
-      ? pw.TextStyle(font: baseFont, fontSize: fontSize)
+  final baseFont = font;
+  final boldFont = fontBold ?? font;
+  // Наименования элементов шапки — всегда жирным.
+  final labelFont = boldFont ?? baseFont;
+  pw.TextStyle headerLabelStyle = labelFont != null
+      ? pw.TextStyle(font: labelFont, fontSize: fontSize)
+      : pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold);
+  // Значения полей шапки и анамнеза — по настройкам (размер, жирный, курсив).
+  final valueFont = useBold ? (boldFont ?? baseFont) : baseFont;
+  pw.TextStyle headerValueStyle = valueFont != null
+      ? pw.TextStyle(font: valueFont, fontSize: fontSize)
       : pw.TextStyle(fontSize: fontSize, fontWeight: useBold ? pw.FontWeight.bold : pw.FontWeight.normal);
-  if (useItalic) headerStyle = headerStyle.copyWith(fontStyle: pw.FontStyle.italic);
+  headerValueStyle = _withItalicFont(headerValueStyle, useItalic);
 
   final titleFontSize = h?.fontSize != null ? fontSize : 18.0;
   pw.TextStyle titleStyle = (fontBold ?? font) != null
       ? pw.TextStyle(font: fontBold ?? font!, fontSize: titleFontSize, fontWeight: pw.FontWeight.bold)
       : pw.TextStyle(fontSize: titleFontSize, fontWeight: pw.FontWeight.bold);
-  if (useItalic) titleStyle = titleStyle.copyWith(fontStyle: pw.FontStyle.italic);
+  titleStyle = _withItalicFont(titleStyle, useItalic);
 
   pw.Widget? titleWidget;
   final body = <pw.Widget>[];
   if (showTitle) {
-    titleWidget = pw.Text('Протокол осмотра', style: titleStyle);
+    titleWidget = pw.Text(template?.title ?? 'Протокол осмотра', style: titleStyle);
   }
   if (showTemplateType) {
-    body.add(pw.Text('Тип протокола: ${examination.templateType}', style: headerStyle));
+    body.add(pw.RichText(
+      text: pw.TextSpan(
+        children: [
+          pw.TextSpan(text: 'Тип протокола: ', style: headerLabelStyle),
+          pw.TextSpan(text: examination.templateType, style: headerValueStyle),
+        ],
+      ),
+    ));
   }
   if (showDate) {
-    body.add(pw.Text('Дата: ${DateFormat('dd.MM.yyyy HH:mm').format(examination.examinationDate)}', style: headerStyle));
+    body.add(pw.RichText(
+      text: pw.TextSpan(
+        children: [
+          pw.TextSpan(text: 'Дата: ', style: headerLabelStyle),
+          pw.TextSpan(
+            text: DateFormat('dd.MM.yyyy HH:mm').format(examination.examinationDate),
+            style: headerValueStyle,
+          ),
+        ],
+      ),
+    ));
   }
   if ((showPatient || showOwner) && (patientName != null || patientOwner != null)) {
     body.add(pw.SizedBox(height: 8));
-    final parts = <String>[];
-    if (showPatient) parts.add('Пациент: ${patientName ?? "—"}');
-    if (showOwner) parts.add('Владелец: ${patientOwner ?? "—"}');
-    body.add(pw.Text(parts.join(' · '), style: headerStyle));
+    final rowChildren = <pw.Widget>[];
+    if (showPatient) {
+      rowChildren.add(pw.RichText(
+        text: pw.TextSpan(
+          children: [
+            pw.TextSpan(text: 'Пациент: ', style: headerLabelStyle),
+            pw.TextSpan(text: patientName ?? '—', style: headerValueStyle),
+          ],
+        ),
+      ));
+    }
+    if (showPatient && showOwner) rowChildren.add(pw.Text(' · ', style: headerValueStyle));
+    if (showOwner) {
+      rowChildren.add(pw.RichText(
+        text: pw.TextSpan(
+          children: [
+            pw.TextSpan(text: 'Владелец: ', style: headerLabelStyle),
+            pw.TextSpan(text: patientOwner ?? '—', style: headerValueStyle),
+          ],
+        ),
+      ));
+    }
+    body.add(pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      mainAxisSize: pw.MainAxisSize.min,
+      children: rowChildren,
+    ));
   }
-  return (title: titleWidget, body: body);
+  return (title: titleWidget, body: body, valueStyle: headerValueStyle);
 }
 
 /// VET-122: строка профиля для нижнего колонтитула — <Специализация> <ФИО>. <Примечание>
@@ -264,6 +388,9 @@ class ProtocolPdfService {
     final font = _pdfFontRegular;
     final fontBold = _pdfFontBold ?? font;
     final style12 = font != null ? pw.TextStyle(font: font, fontSize: 12) : const pw.TextStyle(fontSize: 12);
+    final style12Bold = fontBold != null
+        ? pw.TextStyle(font: fontBold, fontSize: 12)
+        : pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold);
     final style11 = font != null ? pw.TextStyle(font: font, fontSize: 11) : const pw.TextStyle(fontSize: 11);
     final style10 = font != null ? pw.TextStyle(font: font, fontSize: 10) : const pw.TextStyle(fontSize: 10);
 
@@ -274,6 +401,35 @@ class ProtocolPdfService {
         photoBytesList.add(await f.readAsBytes());
       } else {
         photoBytesList.add(null);
+      }
+    }
+    // VET-153: загрузка байтов для полей типа «Фото» (данные в extractedFields).
+    final photoFieldData = <String, List<({List<int> bytes, String? description})>>{};
+    if (template != null) {
+      for (final section in template.sections) {
+        for (final field in section.fields) {
+          if (field.type != 'photo') continue;
+          final value = examination.extractedFields[field.key];
+          if (value is! List || value.isEmpty) continue;
+          final list = <({List<int> bytes, String? description})>[];
+          for (final e in value) {
+            String? path;
+            String? desc;
+            if (e is Map<String, dynamic>) {
+              path = e['path'] as String?;
+              desc = e['description'] as String?;
+            } else if (e is Map) {
+              path = e['path']?.toString();
+              desc = e['description']?.toString();
+            }
+            if (path == null || path.isEmpty) continue;
+            final file = File(path);
+            if (await file.exists()) {
+              list.add((bytes: await file.readAsBytes(), description: desc));
+            }
+          }
+          if (list.isNotEmpty) photoFieldData[field.key] = list;
+        }
       }
     }
     const marginPt = 24.0;
@@ -290,7 +446,7 @@ class ProtocolPdfService {
       );
       final h = template.headerPrintSettings;
       final a = template.anamnesisPrintSettings;
-      final ph = template.photosPrintSettings;
+      final ph = _effectivePhotosPrintSettings(template);
       final headerHasPos = h?.positionX != null && h?.positionY != null &&
           h?.width != null && h?.height != null;
       final anamnesisHasPos = a?.positionX != null && a?.positionY != null &&
@@ -339,9 +495,11 @@ class ProtocolPdfService {
               style10,
               style11,
               style12,
+              style12Bold,
               photoBytesList,
               contentWidth,
               contentHeight,
+              photoFieldData: photoFieldData,
             ),
             footer: _footerBuilder(vetProfile: vetProfile, vetClinic: vetClinic, style10: style10),
           ),
@@ -388,15 +546,17 @@ class ProtocolPdfService {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 mainAxisSize: pw.MainAxisSize.min,
                 children: [
-                  pw.Text('Анамнез', style: style12),
-                  pw.Text(examination.anamnesis!, style: style11),
+                  pw.Text('Анамнез', style: style12Bold),
+                  pw.Text(examination.anamnesis!, style: header.valueStyle ?? style11),
                 ],
               ),
             ));
           }
 
           final sectionsOnPage = template.sections
-              .where((s) => (s.printSettings?.pageIndex ?? 1) == pageIdx)
+              .where((s) =>
+                  s.sectionKind != sectionKindPhotos &&
+                  (s.printSettings?.pageIndex ?? 1) == pageIdx)
               .toList();
           if (sectionsOnPage.isNotEmpty) {
             final sectionWidgets = _buildPositionedSectionsForPage(
@@ -432,7 +592,7 @@ class ProtocolPdfService {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 mainAxisSize: pw.MainAxisSize.min,
                 children: [
-                  pw.Text('Фотографии', style: style12),
+                  pw.Text('Фотографии', style: style12Bold),
                   pw.SizedBox(height: 8),
                   ...gridResult.widgets,
                 ],
@@ -464,8 +624,8 @@ class ProtocolPdfService {
                 ...header.body,
                 if (examination.anamnesis != null && examination.anamnesis!.isNotEmpty) ...[
                   pw.SizedBox(height: 16),
-                  pw.Text('Анамнез', style: style12),
-                  pw.Text(examination.anamnesis!, style: style11),
+                  pw.Text('Анамнез', style: style12Bold),
+                  pw.Text(examination.anamnesis!, style: header.valueStyle ?? style11),
                 ],
               ],
             ),
@@ -488,7 +648,7 @@ class ProtocolPdfService {
         );
       }
       if (examination.photos.isNotEmpty) {
-        final photosPos = template.photosPrintSettings;
+        final photosPos = _effectivePhotosPrintSettings(template);
         final photosOnPositionedPage = photosPos?.positionX != null &&
             photosPos?.positionY != null &&
             photosPos?.width != null &&
@@ -499,7 +659,7 @@ class ProtocolPdfService {
               pageFormat: pageFormat,
               margin: const pw.EdgeInsets.all(marginPt),
               build: (context) => [
-                pw.Header(level: 1, child: pw.Text('Фотографии', style: style12)),
+                pw.Header(level: 1, child: pw.Text('Фотографии', style: style12Bold)),
                 ..._photoWidgets(examination.photos, photoBytesList, style10),
               ],
               footer: _footerBuilder(vetProfile: vetProfile, vetClinic: vetClinic, style10: style10),
@@ -521,16 +681,25 @@ class ProtocolPdfService {
             ...header.body,
             if (examination.anamnesis != null && examination.anamnesis!.isNotEmpty) ...[
               pw.SizedBox(height: 16),
-              pw.Header(level: 1, child: pw.Text('Анамнез', style: style12)),
+              pw.Header(level: 1, child: pw.Text('Анамнез', style: style12Bold)),
               pw.Text(examination.anamnesis!, style: style11),
             ],
             if (examination.extractedFields.isNotEmpty) ...[
               pw.SizedBox(height: 16),
-              ..._buildDataSectionWidgets(examination.extractedFields, template, font, fontBold, style12, style11),
+              ..._buildDataSectionWidgets(
+                examination.extractedFields,
+                template,
+                font,
+                fontBold,
+                style10,
+                style12,
+                style11,
+                photoFieldData: photoFieldData,
+              ),
             ],
             if (examination.photos.isNotEmpty) ...[
               pw.SizedBox(height: 16),
-              pw.Header(level: 1, child: pw.Text('Фотографии', style: style12)),
+              pw.Header(level: 1, child: pw.Text('Фотографии', style: style12Bold)),
               ..._photoWidgets(examination.photos, photoBytesList, style10),
             ],
           ],
@@ -551,19 +720,21 @@ class ProtocolPdfService {
     String? patientName,
     String? patientOwner,
     ProtocolTemplate template,
-    ({pw.Widget? title, List<pw.Widget> body}) header,
+    ({pw.Widget? title, List<pw.Widget> body, pw.TextStyle? valueStyle}) header,
     pw.Font? font,
     pw.Font? fontBold,
     pw.TextStyle style10,
     pw.TextStyle style11,
     pw.TextStyle style12,
+    pw.TextStyle style12Bold,
     List<List<int>?> photoBytesList,
     double contentWidth,
-    double contentHeight,
-  ) {
+    double contentHeight, {
+    Map<String, List<({List<int> bytes, String? description})>>? photoFieldData,
+  }) {
     final h = template.headerPrintSettings;
     final a = template.anamnesisPrintSettings;
-    final ph = template.photosPrintSettings;
+    final ph = _effectivePhotosPrintSettings(template);
     final headerPage = h?.pageIndex ?? 0;
     final anamPage = a?.pageIndex ?? 0;
     final photosPage = ph?.pageIndex ?? 1;
@@ -589,7 +760,7 @@ class ProtocolPdfService {
         mainAxisSize: pw.MainAxisSize.min,
         children: [
           pw.SizedBox(height: 16),
-          pw.Text('Анамнез', style: style12),
+          pw.Text('Анамнез', style: style12Bold),
           pw.Text(examination.anamnesis!, style: style11),
         ],
       );
@@ -605,18 +776,20 @@ class ProtocolPdfService {
     for (final section in sortedSections) {
       final ps = section.printSettings;
       if (ps?.positionX == null || ps?.positionY == null || ps?.width == null || ps?.height == null) continue;
-      final sectionKeys = section.fields.map((f) => f.key).toSet();
-      final sectionEntries = examination.extractedFields.entries
-          .where((e) => sectionKeys.contains(e.key))
-          .toList();
-      if (sectionEntries.isEmpty) continue;
+      final hasContent = section.fields.any((f) {
+        if (f.type == 'photo') return (photoFieldData?[f.key]?.isNotEmpty ?? false);
+        return examination.extractedFields.containsKey(f.key);
+      });
+      if (!hasContent) continue;
 
       final sectionW = _buildSectionFlowWidget(
         section,
-        sectionEntries,
         examination.extractedFields,
         font,
         fontBold,
+        style10,
+        contentWidth,
+        photoFieldData: photoFieldData,
       );
       blocks.add((pageIndex: ps!.pageIndex ?? 1, widget: sectionW));
     }
@@ -626,7 +799,7 @@ class ProtocolPdfService {
         examination.photos,
         photoBytesList,
         style10,
-        style12,
+        style12Bold,
         ph ?? const PhotosPrintSettings(width: 180, photosPerRow: 2),
         contentWidth,
       );
@@ -650,11 +823,13 @@ class ProtocolPdfService {
 
   static pw.Widget _buildSectionFlowWidget(
     TemplateSection section,
-    List<MapEntry<String, dynamic>> sectionEntries,
     Map<String, dynamic> extractedFields,
     pw.Font? font,
     pw.Font? fontBold,
-  ) {
+    pw.TextStyle style10,
+    double contentWidth, {
+    Map<String, List<({List<int> bytes, String? description})>>? photoFieldData,
+  }) {
     final ps = section.printSettings!;
     final fontSize = ps.fontSize ?? 12.0;
     final useItalic = ps.italic;
@@ -663,53 +838,111 @@ class ProtocolPdfService {
     pw.TextStyle titleStyle = sectionFont != null
         ? pw.TextStyle(font: sectionFontBold ?? sectionFont, fontSize: fontSize)
         : pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold);
-    if (useItalic) titleStyle = titleStyle.copyWith(fontStyle: pw.FontStyle.italic);
+    titleStyle = _withItalicFont(titleStyle, useItalic);
     pw.TextStyle cellStyle = sectionFont != null
         ? pw.TextStyle(font: sectionFont, fontSize: fontSize > 0 ? fontSize : 11)
         : pw.TextStyle(fontSize: fontSize > 0 ? fontSize : 11);
-    if (useItalic) cellStyle = cellStyle.copyWith(fontStyle: pw.FontStyle.italic);
+    cellStyle = _withItalicFont(cellStyle, useItalic);
 
     final showSectionBorder = ps.showBorder;
     final sectionBorderShape = ps.borderShape;
 
+    final children = <pw.Widget>[
+      pw.Text(section.title, style: titleStyle),
+      pw.SizedBox(height: 4),
+    ];
+    for (final field in section.fields) {
+      if (field.type == 'photo') {
+        final data = photoFieldData?[field.key];
+        if (data == null || data.isEmpty) continue;
+        final photosPerRow = (field.printSettings?.photosPerRow ?? 2).clamp(1, 4);
+        final gridResult = _photoGridFromBytes(data, style10, contentWidth, photosPerRow);
+        final showLabel = field.printSettings?.showLabel ?? false;
+        final labelStyle = _fieldLabelStyle(cellStyle, fontBold, field.printSettings?.labelBold ?? false, field.printSettings?.labelItalic ?? false);
+        final columnChildren = <pw.Widget>[
+          if (showLabel) ...[
+            pw.Text('${field.label}:', style: labelStyle),
+            pw.SizedBox(height: 4),
+          ],
+          gridResult.widget,
+        ];
+        children.add(pw.Padding(
+          padding: const pw.EdgeInsets.only(bottom: 8),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            mainAxisSize: pw.MainAxisSize.min,
+            children: columnChildren,
+          ),
+        ));
+        continue;
+      }
+      final value = extractedFields[field.key];
+      if (value == null) continue;
+      final autoGrow = field.printSettings?.autoGrowHeight == true;
+      final showFieldBorder = field.printSettings?.showBorder ?? false;
+      final fieldBorderShape = field.printSettings?.borderShape ?? 'rectangular';
+      final showLabel = field.printSettings?.showLabel ?? true;
+      final labelPos = field.printSettings?.labelPosition ?? 'before';
+      final labelStyle = _fieldLabelStyle(cellStyle, fontBold, field.printSettings?.labelBold ?? false, field.printSettings?.labelItalic ?? false);
+      pw.Widget row;
+      if (!showLabel) {
+        row = pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              child: autoGrow
+                  ? pw.Text(value.toString(), style: cellStyle)
+                  : pw.Text(value.toString(), style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+            ),
+          ],
+        );
+      } else if (labelPos == 'above') {
+        row = pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          mainAxisSize: pw.MainAxisSize.min,
+          children: [
+            pw.Text('${field.label}:', style: labelStyle),
+            pw.SizedBox(height: 2),
+            autoGrow
+                ? pw.Text(value.toString(), style: cellStyle)
+                : pw.Text(value.toString(), style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+          ],
+        );
+      } else if (labelPos == 'inline') {
+        row = pw.RichText(
+          text: pw.TextSpan(
+            children: [
+              pw.TextSpan(text: '${field.label}: ', style: labelStyle),
+              pw.TextSpan(text: value.toString(), style: cellStyle),
+            ],
+          ),
+          maxLines: 5,
+          overflow: pw.TextOverflow.clip,
+        );
+      } else {
+        row = pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.SizedBox(width: 80, child: pw.Text('${field.label}:', style: labelStyle)),
+            pw.Expanded(
+              child: autoGrow
+                  ? pw.Text(value.toString(), style: cellStyle)
+                  : pw.Text(value.toString(), style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+            ),
+          ],
+        );
+      }
+      row = _wrapWithBorder(row, showBorder: showFieldBorder, borderShape: fieldBorderShape);
+      children.add(pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 2),
+        child: row,
+      ));
+    }
+
     pw.Widget content = pw.Column(
       mainAxisSize: pw.MainAxisSize.min,
       crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Text(section.title, style: titleStyle),
-        pw.SizedBox(height: 4),
-        ...sectionEntries.map((e) {
-          String label = e.key;
-          TemplateField? field;
-          for (final f in section.fields) {
-            if (f.key == e.key) {
-              label = f.label;
-              field = f;
-              break;
-            }
-          }
-          final value = e.value?.toString() ?? '—';
-          final autoGrow = field?.printSettings?.autoGrowHeight == true;
-          final showFieldBorder = field?.printSettings?.showBorder ?? false;
-          final fieldBorderShape = field?.printSettings?.borderShape ?? 'rectangular';
-          pw.Widget row = pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.SizedBox(width: 80, child: pw.Text('$label:', style: cellStyle)),
-              pw.Expanded(
-                child: autoGrow
-                    ? pw.Text(value, style: cellStyle)
-                    : pw.Text(value, style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
-              ),
-            ],
-          );
-          row = _wrapWithBorder(row, showBorder: showFieldBorder, borderShape: fieldBorderShape);
-          return pw.Padding(
-            padding: const pw.EdgeInsets.only(bottom: 2),
-            child: row,
-          );
-        }),
-      ],
+      children: children,
     );
     content = _wrapWithBorder(content, showBorder: showSectionBorder, borderShape: sectionBorderShape);
     return pw.Padding(
@@ -718,11 +951,61 @@ class ProtocolPdfService {
     );
   }
 
+  /// VET-150: таблица раздела — ячейки с полем ввода (значение из extractedFields) или статичный текст.
+  static pw.Widget _buildTableSectionPdfWidget(
+    TemplateSection section,
+    Map<String, dynamic> extractedFields,
+    pw.Font? font,
+    pw.Font? fontBold,
+    pw.TextStyle style12,
+    pw.TextStyle style11,
+  ) {
+    final tc = section.tableConfig;
+    if (tc == null) return pw.SizedBox();
+    final rows = tc.tableRows;
+    final cols = tc.tableCols;
+    final cellMap = <int, TableCellConfig>{};
+    for (final c in tc.cells) {
+      cellMap[c.row * 100 + c.col] = c;
+    }
+    TableCellConfig cellAt(int r, int c) =>
+        cellMap[r * 100 + c] ?? TableCellConfig(row: r, col: c);
+
+    final cellStyle = font != null
+        ? pw.TextStyle(font: font, fontSize: 11)
+        : const pw.TextStyle(fontSize: 11);
+
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 8),
+      child: pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.black),
+        columnWidths: Map.fromIterables(
+          List.generate(cols, (i) => i),
+          List.generate(cols, (_) => const pw.FlexColumnWidth(1)),
+        ),
+        children: List.generate(rows, (r) {
+          return pw.TableRow(
+            children: List.generate(cols, (c) {
+              final cell = cellAt(r, c);
+              final text = cell.isInputField && cell.key != null
+                  ? (extractedFields[cell.key]?.toString() ?? '')
+                  : (cell.staticText ?? '');
+              return pw.Padding(
+                padding: const pw.EdgeInsets.all(4),
+                child: pw.Text(text, style: cellStyle),
+              );
+            }),
+          );
+        }),
+      ),
+    );
+  }
+
   static pw.Widget _buildPhotosFlowWidget(
     List<ExaminationPhoto> photos,
     List<List<int>?> photoBytesList,
     pw.TextStyle style10,
-    pw.TextStyle style12,
+    pw.TextStyle style12Bold,
     PhotosPrintSettings ph,
     double contentWidth,
   ) {
@@ -735,7 +1018,7 @@ class ProtocolPdfService {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         mainAxisSize: pw.MainAxisSize.min,
         children: [
-          pw.Text('Фотографии', style: style12),
+          pw.Text('Фотографии', style: style12Bold),
           pw.SizedBox(height: 8),
           ...gridResult.widgets,
         ],
@@ -786,15 +1069,15 @@ class ProtocolPdfService {
       pw.TextStyle headerStyle = sectionFont != null
           ? pw.TextStyle(font: useBold ? (sectionFontBold ?? sectionFont) : sectionFont, fontSize: fontSize)
           : pw.TextStyle(fontSize: fontSize, fontWeight: useBold ? pw.FontWeight.bold : pw.FontWeight.normal);
-      if (useItalic) headerStyle = headerStyle.copyWith(fontStyle: pw.FontStyle.italic);
+      headerStyle = _withItalicFont(headerStyle, useItalic);
       pw.TextStyle titleStyle = sectionFont != null
           ? pw.TextStyle(font: sectionFontBold ?? sectionFont, fontSize: fontSize)
           : pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold);
-      if (useItalic) titleStyle = titleStyle.copyWith(fontStyle: pw.FontStyle.italic);
+      titleStyle = _withItalicFont(titleStyle, useItalic);
       pw.TextStyle cellStyle = sectionFont != null
           ? pw.TextStyle(font: sectionFont, fontSize: fontSize > 0 ? fontSize : 11)
           : pw.TextStyle(fontSize: fontSize > 0 ? fontSize : 11);
-      if (useItalic) cellStyle = cellStyle.copyWith(fontStyle: pw.FontStyle.italic);
+      cellStyle = _withItalicFont(cellStyle, useItalic);
 
       final hasAutoGrow = section.fields.any((f) => f.printSettings?.autoGrowHeight == true);
       final showSectionBorder = ps.showBorder;
@@ -820,17 +1103,57 @@ class ProtocolPdfService {
             final autoGrow = field?.printSettings?.autoGrowHeight == true;
             final showFieldBorder = field?.printSettings?.showBorder ?? false;
             final fieldBorderShape = field?.printSettings?.borderShape ?? 'rectangular';
-            pw.Widget row = pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.SizedBox(width: 80, child: pw.Text('$label:', style: cellStyle)),
-                pw.Expanded(
-                  child: autoGrow
+            final showLabel = field?.printSettings?.showLabel ?? true;
+            final labelPos = field?.printSettings?.labelPosition ?? 'before';
+            final labelStyle = _fieldLabelStyle(cellStyle, sectionFontBold, field?.printSettings?.labelBold ?? false, field?.printSettings?.labelItalic ?? false);
+            pw.Widget row;
+            if (!showLabel) {
+              row = pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(
+                    child: autoGrow
+                        ? pw.Text(value, style: cellStyle)
+                        : pw.Text(value, style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+                  ),
+                ],
+              );
+            } else if (labelPos == 'above') {
+              row = pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.Text('$label:', style: labelStyle),
+                  pw.SizedBox(height: 2),
+                  autoGrow
                       ? pw.Text(value, style: cellStyle)
                       : pw.Text(value, style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+                ],
+              );
+            } else if (labelPos == 'inline') {
+              row = pw.RichText(
+                text: pw.TextSpan(
+                  children: [
+                    pw.TextSpan(text: '$label: ', style: labelStyle),
+                    pw.TextSpan(text: value, style: cellStyle),
+                  ],
                 ),
-              ],
-            );
+                maxLines: 5,
+                overflow: pw.TextOverflow.clip,
+              );
+            } else {
+              row = pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(width: 80, child: pw.Text('$label:', style: labelStyle)),
+                  pw.Expanded(
+                    child: autoGrow
+                        ? pw.Text(value, style: cellStyle)
+                        : pw.Text(value, style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+                  ),
+                ],
+              );
+            }
             row = _wrapWithBorder(row, showBorder: showFieldBorder, borderShape: fieldBorderShape);
             return pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 2),
@@ -901,11 +1224,11 @@ class ProtocolPdfService {
       pw.TextStyle titleStyle = sectionFont != null
           ? pw.TextStyle(font: sectionFontBold ?? sectionFont, fontSize: fontSize)
           : pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold);
-      if (useItalic) titleStyle = titleStyle.copyWith(fontStyle: pw.FontStyle.italic);
+      titleStyle = _withItalicFont(titleStyle, useItalic);
       pw.TextStyle cellStyle = sectionFont != null
           ? pw.TextStyle(font: sectionFont, fontSize: fontSize > 0 ? fontSize : 11)
           : pw.TextStyle(fontSize: fontSize > 0 ? fontSize : 11);
-      if (useItalic) cellStyle = cellStyle.copyWith(fontStyle: pw.FontStyle.italic);
+      cellStyle = _withItalicFont(cellStyle, useItalic);
 
       final hasAutoGrow = section.fields.any((f) => f.printSettings?.autoGrowHeight == true);
       final showSectionBorder = ps.showBorder;
@@ -931,17 +1254,57 @@ class ProtocolPdfService {
             final autoGrow = field?.printSettings?.autoGrowHeight == true;
             final showFieldBorder = field?.printSettings?.showBorder ?? false;
             final fieldBorderShape = field?.printSettings?.borderShape ?? 'rectangular';
-            pw.Widget row = pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.SizedBox(width: 80, child: pw.Text('$label:', style: cellStyle)),
-                pw.Expanded(
-                  child: autoGrow
+            final showLabel = field?.printSettings?.showLabel ?? true;
+            final labelPos = field?.printSettings?.labelPosition ?? 'before';
+            final labelStyle = _fieldLabelStyle(cellStyle, sectionFontBold, field?.printSettings?.labelBold ?? false, field?.printSettings?.labelItalic ?? false);
+            pw.Widget row;
+            if (!showLabel) {
+              row = pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(
+                    child: autoGrow
+                        ? pw.Text(value, style: cellStyle)
+                        : pw.Text(value, style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+                  ),
+                ],
+              );
+            } else if (labelPos == 'above') {
+              row = pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.Text('$label:', style: labelStyle),
+                  pw.SizedBox(height: 2),
+                  autoGrow
                       ? pw.Text(value, style: cellStyle)
                       : pw.Text(value, style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+                ],
+              );
+            } else if (labelPos == 'inline') {
+              row = pw.RichText(
+                text: pw.TextSpan(
+                  children: [
+                    pw.TextSpan(text: '$label: ', style: labelStyle),
+                    pw.TextSpan(text: value, style: cellStyle),
+                  ],
                 ),
-              ],
-            );
+                maxLines: 5,
+                overflow: pw.TextOverflow.clip,
+              );
+            } else {
+              row = pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(width: 80, child: pw.Text('$label:', style: labelStyle)),
+                  pw.Expanded(
+                    child: autoGrow
+                        ? pw.Text(value, style: cellStyle)
+                        : pw.Text(value, style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+                  ),
+                ],
+              );
+            }
             row = _wrapWithBorder(row, showBorder: showFieldBorder, borderShape: fieldBorderShape);
             return pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 2),
@@ -1009,15 +1372,15 @@ class ProtocolPdfService {
       pw.TextStyle headerStyle = sectionFont != null
           ? pw.TextStyle(font: useBold ? (sectionFontBold ?? sectionFont) : sectionFont, fontSize: fontSize)
           : pw.TextStyle(fontSize: fontSize, fontWeight: useBold ? pw.FontWeight.bold : pw.FontWeight.normal);
-      if (useItalic) headerStyle = headerStyle.copyWith(fontStyle: pw.FontStyle.italic);
+      headerStyle = _withItalicFont(headerStyle, useItalic);
       pw.TextStyle titleStyle = sectionFont != null
           ? pw.TextStyle(font: sectionFontBold ?? sectionFont, fontSize: fontSize)
           : pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold);
-      if (useItalic) titleStyle = titleStyle.copyWith(fontStyle: pw.FontStyle.italic);
+      titleStyle = _withItalicFont(titleStyle, useItalic);
       pw.TextStyle cellStyle = sectionFont != null
           ? pw.TextStyle(font: sectionFont, fontSize: fontSize > 0 ? fontSize : 11)
           : pw.TextStyle(fontSize: fontSize > 0 ? fontSize : 11);
-      if (useItalic) cellStyle = cellStyle.copyWith(fontStyle: pw.FontStyle.italic);
+      cellStyle = _withItalicFont(cellStyle, useItalic);
 
       final hasAutoGrow = section.fields.any((f) => f.printSettings?.autoGrowHeight == true);
       final showSectionBorder = ps.showBorder;
@@ -1043,17 +1406,57 @@ class ProtocolPdfService {
             final autoGrow = field?.printSettings?.autoGrowHeight == true;
             final showFieldBorder = field?.printSettings?.showBorder ?? false;
             final fieldBorderShape = field?.printSettings?.borderShape ?? 'rectangular';
-            pw.Widget row = pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.SizedBox(width: 80, child: pw.Text('$label:', style: cellStyle)),
-                pw.Expanded(
-                  child: autoGrow
+            final showLabel = field?.printSettings?.showLabel ?? true;
+            final labelPos = field?.printSettings?.labelPosition ?? 'before';
+            final labelStyle = _fieldLabelStyle(cellStyle, sectionFontBold, field?.printSettings?.labelBold ?? false, field?.printSettings?.labelItalic ?? false);
+            pw.Widget row;
+            if (!showLabel) {
+              row = pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(
+                    child: autoGrow
+                        ? pw.Text(value, style: cellStyle)
+                        : pw.Text(value, style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+                  ),
+                ],
+              );
+            } else if (labelPos == 'above') {
+              row = pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.Text('$label:', style: labelStyle),
+                  pw.SizedBox(height: 2),
+                  autoGrow
                       ? pw.Text(value, style: cellStyle)
                       : pw.Text(value, style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+                ],
+              );
+            } else if (labelPos == 'inline') {
+              row = pw.RichText(
+                text: pw.TextSpan(
+                  children: [
+                    pw.TextSpan(text: '$label: ', style: labelStyle),
+                    pw.TextSpan(text: value, style: cellStyle),
+                  ],
                 ),
-              ],
-            );
+                maxLines: 5,
+                overflow: pw.TextOverflow.clip,
+              );
+            } else {
+              row = pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(width: 80, child: pw.Text('$label:', style: labelStyle)),
+                  pw.Expanded(
+                    child: autoGrow
+                        ? pw.Text(value, style: cellStyle)
+                        : pw.Text(value, style: cellStyle, maxLines: 3, overflow: pw.TextOverflow.clip),
+                  ),
+                ],
+              );
+            }
             row = _wrapWithBorder(row, showBorder: showFieldBorder, borderShape: fieldBorderShape);
             return pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 2),
@@ -1086,14 +1489,17 @@ class ProtocolPdfService {
   }
 
   /// VET-068: строит виджеты «Данные осмотра» по разделам шаблона с учётом настроек печати; при отсутствии шаблона — один блок с плоским списком.
+  /// VET-153: photoFieldData — предзагруженные байты фото для полей типа «Фото».
   static List<pw.Widget> _buildDataSectionWidgets(
     Map<String, dynamic> extractedFields,
     ProtocolTemplate? template,
     pw.Font? font,
     pw.Font? fontBold,
+    pw.TextStyle style10,
     pw.TextStyle style12,
-    pw.TextStyle style11,
-  ) {
+    pw.TextStyle style11, {
+    Map<String, List<({List<int> bytes, String? description})>>? photoFieldData,
+  }) {
     if (template == null || template.sections.isEmpty) {
       return [
         pw.Header(
@@ -1122,6 +1528,12 @@ class ProtocolPdfService {
       ..sort((a, b) => a.order.compareTo(b.order));
     final out = <pw.Widget>[];
     for (final section in sortedSections) {
+      if (section.sectionKind == sectionKindPhotos) continue;
+      if (section.sectionKind == sectionKindTable) {
+        out.add(pw.Header(level: 1, child: pw.Text(section.title, style: style12)));
+        out.add(_buildTableSectionPdfWidget(section, extractedFields, font, fontBold, style12, style11));
+        continue;
+      }
       final ps = section.printSettings;
       final fontSize = ps?.fontSize ?? 12.0;
       final useBold = ps?.bold ?? false;
@@ -1131,60 +1543,106 @@ class ProtocolPdfService {
       pw.TextStyle headerStyle = sectionFont != null
           ? pw.TextStyle(font: useBold ? sectionFontBold : sectionFont, fontSize: fontSize)
           : pw.TextStyle(fontSize: fontSize, fontWeight: useBold ? pw.FontWeight.bold : pw.FontWeight.normal);
-      if (useItalic) {
-        headerStyle = headerStyle.copyWith(fontStyle: pw.FontStyle.italic);
-      }
+      headerStyle = _withItalicFont(headerStyle, useItalic);
       pw.TextStyle titleStyle = sectionFont != null
           ? pw.TextStyle(font: sectionFontBold ?? sectionFont, fontSize: fontSize)
           : pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold);
-      if (useItalic) {
-        titleStyle = titleStyle.copyWith(fontStyle: pw.FontStyle.italic);
-      }
+      titleStyle = _withItalicFont(titleStyle, useItalic);
       pw.TextStyle cellStyle = sectionFont != null
           ? pw.TextStyle(font: sectionFont, fontSize: fontSize > 0 ? fontSize : 11)
           : pw.TextStyle(fontSize: fontSize > 0 ? fontSize : 11);
-      if (useItalic) {
-        cellStyle = cellStyle.copyWith(fontStyle: pw.FontStyle.italic);
-      }
-      final sectionKeys = section.fields.map((f) => f.key).toSet();
-      final sectionEntries = extractedFields.entries
-          .where((e) => sectionKeys.contains(e.key))
-          .toList();
-      if (sectionEntries.isEmpty) continue;
+      cellStyle = _withItalicFont(cellStyle, useItalic);
+      final hasContent = section.fields.any((f) {
+        if (f.type == 'photo') {
+          return (photoFieldData?[f.key]?.isNotEmpty ?? false);
+        }
+        return extractedFields.containsKey(f.key);
+      });
+      if (!hasContent) continue;
       final showSectionBorder = ps?.showBorder ?? false;
       final sectionBorderShape = ps?.borderShape ?? 'rectangular';
       final sectionWidgets = <pw.Widget>[
         pw.Header(level: 1, child: pw.Text(section.title, style: titleStyle)),
-        ...sectionEntries.map((e) {
-          String label = e.key;
-          TemplateField? field;
-          for (final f in section.fields) {
-            if (f.key == e.key) {
-              label = f.label;
-              field = f;
-              break;
-            }
-          }
-          final showFieldBorder = field?.printSettings?.showBorder ?? false;
-          final fieldBorderShape = field?.printSettings?.borderShape ?? 'rectangular';
-          pw.Widget row = pw.Row(
+      ];
+      for (final field in section.fields) {
+        if (field.type == 'photo') {
+          final data = photoFieldData?[field.key];
+          if (data == null || data.isEmpty) continue;
+          final photosPerRow = (field.printSettings?.photosPerRow ?? 2).clamp(1, 4);
+          final gridResult = _photoGridFromBytes(data, style10, 400, photosPerRow);
+          final showLabel = field.printSettings?.showLabel ?? false;
+          final labelStyle = _fieldLabelStyle(cellStyle, sectionFontBold, field.printSettings?.labelBold ?? false, field.printSettings?.labelItalic ?? false);
+          final columnChildren = <pw.Widget>[
+            if (showLabel) ...[
+              pw.Text('${field.label}:', style: labelStyle),
+              pw.SizedBox(height: 4),
+            ],
+            gridResult.widget,
+          ];
+          sectionWidgets.add(pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 8),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              mainAxisSize: pw.MainAxisSize.min,
+              children: columnChildren,
+            ),
+          ));
+          continue;
+        }
+        final value = extractedFields[field.key];
+        if (value == null) continue;
+        final showFieldBorder = field.printSettings?.showBorder ?? false;
+        final fieldBorderShape = field.printSettings?.borderShape ?? 'rectangular';
+        final showLabel = field.printSettings?.showLabel ?? true;
+        final labelPos = field.printSettings?.labelPosition ?? 'before';
+        final labelStyle = _fieldLabelStyle(cellStyle, sectionFontBold, field.printSettings?.labelBold ?? false, field.printSettings?.labelItalic ?? false);
+        pw.Widget row;
+        if (!showLabel) {
+          row = pw.Row(
+            children: [
+              pw.Expanded(child: pw.Text(value.toString(), style: cellStyle)),
+            ],
+          );
+        } else if (labelPos == 'above') {
+          row = pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            mainAxisSize: pw.MainAxisSize.min,
+            children: [
+              pw.Text('${field.label}:', style: labelStyle),
+              pw.SizedBox(height: 2),
+              pw.Text(value.toString(), style: cellStyle),
+            ],
+          );
+        } else if (labelPos == 'inline') {
+          row = pw.RichText(
+            text: pw.TextSpan(
+              children: [
+                pw.TextSpan(text: '${field.label}: ', style: labelStyle),
+                pw.TextSpan(text: value.toString(), style: cellStyle),
+              ],
+            ),
+            maxLines: 5,
+            overflow: pw.TextOverflow.clip,
+          );
+        } else {
+          row = pw.Row(
             children: [
               pw.SizedBox(
                 width: 120,
-                child: pw.Text('$label:', style: cellStyle),
+                child: pw.Text('${field.label}:', style: labelStyle),
               ),
               pw.Expanded(
-                child: pw.Text(e.value?.toString() ?? '—', style: cellStyle),
+                child: pw.Text(value.toString(), style: cellStyle),
               ),
             ],
           );
-          row = _wrapWithBorder(row, showBorder: showFieldBorder, borderShape: fieldBorderShape);
-          return pw.Padding(
-            padding: const pw.EdgeInsets.only(bottom: 4),
-            child: row,
-          );
-        }),
-      ];
+        }
+        row = _wrapWithBorder(row, showBorder: showFieldBorder, borderShape: fieldBorderShape);
+        sectionWidgets.add(pw.Padding(
+          padding: const pw.EdgeInsets.only(bottom: 4),
+          child: row,
+        ));
+      }
       pw.Widget sectionBlock = pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         mainAxisSize: pw.MainAxisSize.min,
@@ -1246,6 +1704,76 @@ class ProtocolPdfService {
       );
     }
     return out;
+  }
+
+  /// VET-153: сетка фото из предзагруженных байтов (поля типа «Фото»).
+  static ({pw.Widget widget, double height}) _photoGridFromBytes(
+    List<({List<int> bytes, String? description})> data,
+    pw.TextStyle smallStyle,
+    double sectionWidthPt,
+    int photosPerRow,
+  ) {
+    const gapPt = 8.0;
+    const descHeightPt = 14.0;
+    const aspectRatio = 3 / 4;
+    if (data.isEmpty) return (widget: pw.SizedBox.shrink(), height: 0);
+    final photoWidth = (sectionWidthPt - (photosPerRow - 1) * gapPt) / photosPerRow;
+    final photoHeight = photoWidth * aspectRatio;
+    final rowHeight = photoHeight + descHeightPt + gapPt;
+    final rows = <pw.Widget>[];
+    for (var r = 0; r < data.length; r += photosPerRow) {
+      final rowPhotos = data.skip(r).take(photosPerRow).toList();
+      final rowChildren = <pw.Widget>[];
+      for (var i = 0; i < photosPerRow; i++) {
+        if (i < rowPhotos.length) {
+          final item = rowPhotos[i];
+          rowChildren.add(
+            pw.Expanded(
+              child: pw.Padding(
+                padding: pw.EdgeInsets.only(right: i < photosPerRow - 1 ? gapPt : 0),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  mainAxisSize: pw.MainAxisSize.min,
+                  children: [
+                    pw.Image(
+                      pw.MemoryImage(Uint8List.fromList(item.bytes)),
+                      width: photoWidth,
+                      height: photoHeight,
+                      fit: pw.BoxFit.contain,
+                    ),
+                    if (item.description != null && item.description!.isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 4),
+                        child: pw.Text(item.description!, style: smallStyle, maxLines: 2),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        } else {
+          rowChildren.add(pw.Expanded(child: pw.SizedBox.shrink()));
+        }
+      }
+      rows.add(
+        pw.Padding(
+          padding: const pw.EdgeInsets.only(bottom: gapPt),
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: rowChildren,
+          ),
+        ),
+      );
+    }
+    final totalHeight = rows.length * rowHeight;
+    return (
+      widget: pw.Column(
+        mainAxisSize: pw.MainAxisSize.min,
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: rows,
+      ),
+      height: totalHeight,
+    );
   }
 
   /// VET-101: Сетка фото с масштабированием по количеству в ряд и авто-высотой.

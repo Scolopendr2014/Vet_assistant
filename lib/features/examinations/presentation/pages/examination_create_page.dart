@@ -16,7 +16,7 @@ import '../../domain/entities/examination_photo.dart';
 import '../../domain/repositories/examination_repository.dart';
 import '../../services/audio_playback_service.dart';
 import '../../services/audio_recorder_service.dart';
-import '../../../templates/domain/entities/protocol_template.dart';
+import '../../../templates/domain/entities/protocol_template.dart' show ProtocolTemplate, sectionKindPhotos;
 import '../../../templates/presentation/providers/template_providers.dart';
 import '../../../speech/domain/services/stt_router.dart';
 import '../../../speech/services/stt_extraction_service.dart';
@@ -102,6 +102,10 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     final patientAsync = effectivePatientId != null
         ? ref.watch(patientDetailProvider(effectivePatientId))
         : null;
+    // VET-169: блок «Фотографии» только если в шаблоне есть раздел «Фотографии».
+    final templateAsync = _selectedTemplateId != null
+        ? ref.watch(templateByIdProvider(_selectedTemplateId!))
+        : null;
 
     if (isEditMode && examAsync != null) {
       examAsync.whenData((exam) {
@@ -135,12 +139,12 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                 if (!_initializedForEdit) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                return _buildForm(context, templatesAsync, patientAsync, effectivePatientId, isEditMode);
+                return _buildForm(context, templatesAsync, patientAsync, effectivePatientId, isEditMode, templateAsync);
               },
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Ошибка: $e')),
             )
-            : _buildForm(context, templatesAsync, patientAsync, effectivePatientId, false),
+            : _buildForm(context, templatesAsync, patientAsync, effectivePatientId, false, templateAsync),
       ),
     );
   }
@@ -196,13 +200,14 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     );
   }
 
-  /// VET-049: скроллится весь протокол кроме поля «Пациент».
+  /// VET-049: скроллится весь протокол кроме поля «Пациент». VET-169: templateAsync для блока «Фотографии».
   Widget _buildForm(
     BuildContext context,
     AsyncValue<List<ProtocolTemplate>> templatesAsync,
     AsyncValue<dynamic>? patientAsync,
     String? effectivePatientId,
     bool isEditMode,
+    AsyncValue<ProtocolTemplate?>? templateAsync,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -416,50 +421,6 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                   ],
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Text(
-                    'Фотографии',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    onPressed: _pickPhoto,
-                    icon: const Icon(Icons.add_photo_alternate),
-                    tooltip: 'Добавить фото',
-                  ),
-                ],
-              ),
-            ),
-            if (_photos.isNotEmpty)
-              SizedBox(
-                height: 120,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _photos.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final item = _photos[index];
-                    return _PhotoChip(
-                      filePath: item.path,
-                      description: item.description,
-                      onDescriptionChanged: (v) {
-                        setState(() {
-                          _photos[index] = (path: item.path, description: v);
-                        });
-                      },
-                      onRemove: () {
-                        setState(() => _photos.removeAt(index));
-                      },
-                    );
-                  },
-                ),
-              ),
             if (_validationError != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -481,7 +442,66 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                 });
               },
               scrollable: false,
+              onPickPhotoForField: _pickPhotoForField,
             ),
+            (templateAsync != null ? templateAsync.when(
+              data: (template) {
+                final hasPhotosSection =
+                    template?.sections.any((s) => s.sectionKind == sectionKindPhotos) ?? false;
+                if (!hasPhotosSection) return const SizedBox.shrink();
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Фотографии',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            onPressed: _pickPhoto,
+                            icon: const Icon(Icons.add_photo_alternate),
+                            tooltip: 'Добавить фото',
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_photos.isNotEmpty)
+                      SizedBox(
+                        height: 132,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _photos.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (context, index) {
+                            final item = _photos[index];
+                            return _PhotoChip(
+                              filePath: item.path,
+                              description: item.description,
+                              onDescriptionChanged: (v) {
+                                setState(() =>
+                                    _photos[index] = (path: item.path, description: v));
+                              },
+                              onRemove: () {
+                                setState(() => _photos.removeAt(index));
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                );
+              },
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ) : const SizedBox.shrink()),
             Padding(
               padding: const EdgeInsets.only(top: 24),
               child: FilledButton(
@@ -680,6 +700,40 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     setState(() => _photos.add((path: destPath, description: null)));
   }
 
+  /// VET-153: выбор фото для поля типа «Фото»; возвращает путь к сохранённому файлу.
+  Future<String?> _pickPhotoForField() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Камера'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Галерея'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return null;
+    final XFile? picked = await _imagePicker.pickImage(source: source);
+    if (picked == null || !mounted) return null;
+    final dir = await getApplicationDocumentsDirectory();
+    final photosDir = Directory(p.join(dir.path, AppConfig.photosStoragePath));
+    if (!await photosDir.exists()) await photosDir.create(recursive: true);
+    final ext = p.extension(picked.path).isEmpty ? '.jpg' : p.extension(picked.path);
+    final destPath = p.join(photosDir.path, '${const Uuid().v4()}$ext');
+    await File(picked.path).copy(destPath);
+    return destPath;
+  }
+
   Future<void> _saveExamination() async {
     final isEditMode = widget.examinationId != null && _existingExam != null;
     final effectivePatientId = _existingExam?.patientId ?? widget.patientId;
@@ -694,13 +748,15 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
       setState(() => _validationError = 'Шаблон не найден');
       return;
     }
-    // Проверка обязательных полей (ТЗ 4.3.7)
+    // Проверка обязательных полей (ТЗ 4.3.7). VET-153: для поля «Фото» — хотя бы одно фото.
     final missing = <String>[];
     for (final section in template.sections) {
       for (final field in section.fields) {
         if (field.required) {
           final v = _formValues[field.key];
-          if (v == null || (v is String && v.trim().isEmpty)) {
+          if (field.type == 'photo') {
+            if (v is! List || v.isEmpty) missing.add(field.label);
+          } else if (v == null || (v is String && v.trim().isEmpty)) {
             missing.add(field.label);
           }
         }
@@ -715,29 +771,34 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     final now = DateTime.now();
     final examinationId = isEditMode ? _existingExam!.id : const Uuid().v4();
     final existingPhotos = isEditMode ? _existingExam!.photos : <ExaminationPhoto>[];
-    final photos = [
-      for (var i = 0; i < _photos.length; i++)
-        () {
-          ExaminationPhoto? existing;
-          for (final p in existingPhotos) {
-            if (p.filePath == _photos[i].path) {
-              existing = p;
-              break;
-            }
-          }
-          return ExaminationPhoto(
-            id: existing?.id ?? const Uuid().v4(),
-            examinationId: examinationId,
-            filePath: _photos[i].path,
-            description: _photos[i].description?.trim().isEmpty ?? true
-                ? null
-                : _photos[i].description?.trim(),
-            takenAt: existing?.takenAt ?? now,
-            orderIndex: i,
-            createdAt: existing?.createdAt ?? now,
-          );
-        }(),
-    ];
+    // VET-169: фотографии только если в шаблоне есть раздел «Фотографии».
+    final hasPhotosSection =
+        template.sections.any((s) => s.sectionKind == sectionKindPhotos);
+    final photos = hasPhotosSection
+        ? [
+            for (var i = 0; i < _photos.length; i++)
+              () {
+                ExaminationPhoto? existing;
+                for (final p in existingPhotos) {
+                  if (p.filePath == _photos[i].path) {
+                    existing = p;
+                    break;
+                  }
+                }
+                return ExaminationPhoto(
+                  id: existing?.id ?? const Uuid().v4(),
+                  examinationId: examinationId,
+                  filePath: _photos[i].path,
+                  description: _photos[i].description?.trim().isEmpty ?? true
+                      ? null
+                      : _photos[i].description?.trim(),
+                  takenAt: existing?.takenAt ?? now,
+                  orderIndex: i,
+                  createdAt: existing?.createdAt ?? now,
+                );
+              }(),
+          ]
+        : <ExaminationPhoto>[];
     String? vetClinicId;
     if (isEditMode) {
       vetClinicId = _selectedClinicId ?? _existingExam!.vetClinicId;
@@ -801,6 +862,7 @@ class _TemplateFormSection extends ConsumerWidget {
     required this.values,
     required this.onChanged,
     this.scrollable = true,
+    this.onPickPhotoForField,
   });
 
   final String templateId;
@@ -810,6 +872,8 @@ class _TemplateFormSection extends ConsumerWidget {
   final void Function(String key, dynamic value) onChanged;
   /// VET-049: false — форма внутри общего скролла страницы.
   final bool scrollable;
+  /// VET-153: выбор фото для поля типа «Фото» (возвращает путь к файлу).
+  final Future<String?> Function()? onPickPhotoForField;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -866,6 +930,7 @@ class _TemplateFormSection extends ConsumerWidget {
       template: template,
       values: values,
       onChanged: onChanged,
+      onPickPhotoForField: onPickPhotoForField,
     );
     if (scrollable) {
       return SingleChildScrollView(child: form);
@@ -889,16 +954,22 @@ class _PhotoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // VET-170: высота блока и область подписи подобраны так, чтобы поле «Подпись» влезало в блок.
+    const chipWidth = 140.0;
+    const chipHeight = 132.0;
+    const imageHeight = 82.0;
+    const captionPadding = 4.0;
+
     return Card(
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
-        width: 140,
-        height: 120,
+        width: chipWidth,
+        height: chipHeight,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              height: 80,
+              height: imageHeight,
               width: double.infinity,
               child: Stack(
                 fit: StackFit.expand,
@@ -924,18 +995,17 @@ class _PhotoChip extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(4),
+              padding: const EdgeInsets.fromLTRB(captionPadding, 2, captionPadding, captionPadding),
               child: TextFormField(
                 initialValue: description,
                 onChanged: onDescriptionChanged,
                 decoration: const InputDecoration(
                   hintText: 'Подпись',
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                   border: OutlineInputBorder(),
                 ),
-                minLines: 1,
-                maxLines: null,
+                maxLines: 1,
                 style: const TextStyle(fontSize: 12),
               ),
             ),
