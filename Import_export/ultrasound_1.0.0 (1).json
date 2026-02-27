@@ -1,0 +1,561 @@
+{
+  "id": "ultrasound",
+  "version": "1.0.0",
+  "locale": "ru",
+  "title": "Протокол ультразвукового исследования",
+  "description": "Шаблон для УЗИ обследований",
+  "sections": [
+    {
+      "id": "e4c22bef-16a9-4178-8ee9-b1a303191bc8",
+      "title": "Брюшная полость",
+      "order": 1,
+      "fields": [
+        {
+          "key": "field_0e2527fa",
+          "label": "Наличие свободной жидкости в брюшной полости",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_2",
+          "label": "Лимфатические узлы брюшной полости",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        }
+      ],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 65.625,
+        "width": 180.46875,
+        "height": 21.875,
+        "pageIndex": 0,
+        "bold": true
+      }
+    },
+    {
+      "id": "56516355-ba1b-4a35-a44c-8ce51c1df65f",
+      "title": "Мочеполовая система",
+      "order": 2,
+      "fields": [
+        {
+          "key": "field_d4df2c0e",
+          "label": "Мочевой пузырь",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_2_2",
+          "label": "Уретра",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true,
+            "labelItalic": true
+          }
+        },
+        {
+          "key": "field_3",
+          "label": "Фото",
+          "type": "photo",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "photosPerRow": 2,
+            "showLabel": false,
+            "labelPosition": "inline"
+          }
+        }
+      ],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 92.96875,
+        "width": 180.46875,
+        "height": 27.34375,
+        "pageIndex": 0
+      }
+    },
+    {
+      "id": "kidneys",
+      "title": "Почки",
+      "order": 3,
+      "fields": [
+        {
+          "key": "leftKidneySize",
+          "label": "Левая почка",
+          "type": "text",
+          "unit": "мм",
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_5",
+          "label": "Фото",
+          "type": "photo",
+          "unit": "мм",
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "photosPerRow": 2,
+            "showLabel": false
+          }
+        },
+        {
+          "key": "rightKidneySize",
+          "label": "Правая почка",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": [
+            "нормальная",
+            "повышена",
+            "понижена"
+          ],
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_6",
+          "label": "Фото",
+          "type": "photo",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "photosPerRow": 2,
+            "showLabel": false
+          }
+        }
+      ],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 125.78125,
+        "width": 180.46875,
+        "height": 27.34375,
+        "pageIndex": 0
+      }
+    },
+    {
+      "id": "085149a7-14f9-4c74-9e7e-ad17f0686511",
+      "title": "Надпочечники",
+      "order": 4,
+      "fields": [
+        {
+          "key": "field_9ee34e34",
+          "label": "Левый надпочечник",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_2_3",
+          "label": "Правый надпочечник",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_3_2",
+          "label": "Матка и яичники",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_4",
+          "label": "СЕЛЕЗЕНКА",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_5_2",
+          "label": "Фото",
+          "type": "photo",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "photosPerRow": 2,
+            "showLabel": false
+          }
+        }
+      ],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 158.59375,
+        "width": 180.46875,
+        "height": 21.875,
+        "pageIndex": 0,
+        "bold": true
+      }
+    },
+    {
+      "id": "e26c4b1c-2076-46e5-9c4d-4b51cfccc816",
+      "title": "Пишеварительная система",
+      "order": 5,
+      "fields": [
+        {
+          "key": "field_e235613d",
+          "label": "ПЕЧЕНЬ",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_2_4",
+          "label": "Желчный пузырь",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_3_3",
+          "label": "Поджелудочная железа",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_4_2",
+          "label": "Желудок",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_5_3",
+          "label": "Фото",
+          "type": "photo",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "photosPerRow": 2,
+            "showLabel": false
+          }
+        },
+        {
+          "key": "field_6_2",
+          "label": "12 перстная кишка",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_7",
+          "label": "Фото",
+          "type": "photo",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "photosPerRow": 2,
+            "showLabel": false
+          }
+        },
+        {
+          "key": "field_8",
+          "label": "Тощая кишка",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_9",
+          "label": "Фото",
+          "type": "photo",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "photosPerRow": 2,
+            "showLabel": false
+          }
+        },
+        {
+          "key": "field_10",
+          "label": "Подвздошная кишка",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_11",
+          "label": "Фото",
+          "type": "photo",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "photosPerRow": 2,
+            "showLabel": false
+          }
+        },
+        {
+          "key": "field_12",
+          "label": "Слепая кишка",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_13",
+          "label": "Фото",
+          "type": "photo",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "photosPerRow": 2,
+            "showLabel": false
+          }
+        },
+        {
+          "key": "field_14",
+          "label": "Ободочная кишка",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "field_15",
+          "label": "Фото",
+          "type": "photo",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "photosPerRow": 2,
+            "showLabel": false
+          }
+        }
+      ],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 185.9375,
+        "width": 180.46875,
+        "height": 27.34375,
+        "pageIndex": 0,
+        "italic": true
+      }
+    },
+    {
+      "id": "conclusion",
+      "title": "Заключение",
+      "order": 6,
+      "fields": [
+        {
+          "key": "diagnosis",
+          "label": "Диагноз",
+          "type": "text",
+          "unit": null,
+          "required": true,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "labelBold": true
+          }
+        },
+        {
+          "key": "recommendations",
+          "label": "Рекомендации",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        }
+      ],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 218.75,
+        "width": 180.46875,
+        "height": 38.28125,
+        "pageIndex": 0
+      }
+    },
+    {
+      "id": "15e42ea6-8daf-4d3d-992c-f01f7bf52f7e",
+      "title": "Фотографии",
+      "order": 7,
+      "fields": [],
+      "sectionKind": "photos",
+      "photosPrintSettings": {
+        "positionX": 5.46875,
+        "positionY": 0.0,
+        "width": 196.875,
+        "height": 54.6875,
+        "pageIndex": 1,
+        "photosPerRow": 2
+      }
+    }
+  ],
+  "headerPrintSettings": {
+    "italic": true,
+    "showTemplateType": false,
+    "positionX": 5.46875,
+    "positionY": 10.9375,
+    "width": 180.46875,
+    "height": 21.875,
+    "pageIndex": 0
+  },
+  "anamnesisPrintSettings": {
+    "positionX": 5.46875,
+    "positionY": 38.28125,
+    "width": 180.46875,
+    "height": 21.875,
+    "pageIndex": 0
+  }
+}

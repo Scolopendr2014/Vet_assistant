@@ -1,0 +1,1023 @@
+{
+  "id": "cardio",
+  "version": "1.0.2",
+  "locale": "ru",
+  "title": "Протокол кардиологического осмотра",
+  "description": "Шаблон для кардиологических обследований",
+  "sections": [
+    {
+      "id": "vitals",
+      "title": "ЭХОКАРДИОГРАФИЯ",
+      "order": 1,
+      "fields": [
+        {
+          "key": "Overview_1",
+          "label": "Общее описание",
+          "type": "text",
+          "unit": "уд/мин",
+          "required": true,
+          "options": null,
+          "validation": {
+            "min": 40,
+            "max": 240,
+            "warnOnly": false
+          },
+          "printSettings": {
+            "autoGrowHeight": true,
+            "showLabel": false,
+            "labelPosition": "inline"
+          }
+        },
+        {
+          "key": "Aortic_vave",
+          "label": "Аортальный клапан",
+          "type": "text",
+          "unit": null,
+          "required": true,
+          "options": [
+            "синусовый",
+            "аритмия",
+            "мерцательная аритмия",
+            "экстрасистолия",
+            "другое"
+          ],
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "Mitral_vave",
+          "label": "Митральный клапан",
+          "type": "text",
+          "unit": null,
+          "required": true,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "Pulmonare_valve",
+          "label": "Клапан легочной артерии",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": [
+            "нет",
+            "систолический",
+            "диастолический",
+            "систоло-диастолический"
+          ],
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline"
+          }
+        },
+        {
+          "key": "Tricupsid_valve",
+          "label": "Трикупсидальный клапан",
+          "type": "text",
+          "unit": "мм рт.ст.",
+          "required": false,
+          "options": null,
+          "validation": {
+            "pattern": "^\\d+\\s*/\\s*\\d+$",
+            "warnOnly": true
+          },
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline",
+            "labelBold": true
+          }
+        },
+        {
+          "key": "Sings_of_effusion",
+          "label": "Признаки выпота",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null,
+          "printSettings": {
+            "autoGrowHeight": true,
+            "labelPosition": "inline"
+          }
+        }
+      ],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 60.15625,
+        "width": 191.40625,
+        "height": 27.34375,
+        "pageIndex": 0,
+        "italic": true
+      }
+    },
+    {
+      "id": "db2ec0b9-2a63-4743-a31d-57c227929fdd",
+      "title": "Масса тела",
+      "order": 2,
+      "fields": [],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 87.5,
+        "width": 191.40625,
+        "height": 12.0,
+        "pageIndex": 0
+      },
+      "sectionKind": "table",
+      "tableConfig": {
+        "tableRows": 1,
+        "tableCols": 9,
+        "cells": [
+          {
+            "row": 0,
+            "col": 0,
+            "staticText": "Масса тела"
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2,
+            "staticText": "ППТ"
+          },
+          {
+            "row": 0,
+            "col": 3,
+            "isInputField": true,
+            "label": "масса тела"
+          },
+          {
+            "row": 0,
+            "col": 4
+          },
+          {
+            "row": 0,
+            "col": 5
+          },
+          {
+            "row": 0,
+            "col": 6
+          },
+          {
+            "row": 0,
+            "col": 7
+          },
+          {
+            "row": 0,
+            "col": 8
+          }
+        ],
+        "mergeRegions": [
+          {
+            "row": 0,
+            "col": 0,
+            "rowSpan": 1,
+            "colSpan": 2,
+            "mainCellRow": 0,
+            "mainCellCol": 0
+          }
+        ],
+        "columnWidthsMm": [
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0,
+          10.0
+        ],
+        "rowHeightsMm": [
+          5.0
+        ]
+      }
+    },
+    {
+      "id": "4ecb7c40-49e0-4277-97e1-444fd5e35171",
+      "title": "В-режим",
+      "order": 3,
+      "fields": [],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 98.4375,
+        "width": 65.625,
+        "height": 43.75,
+        "pageIndex": 0
+      },
+      "sectionKind": "table",
+      "tableConfig": {
+        "tableRows": 7,
+        "tableCols": 3,
+        "cells": [
+          {
+            "row": 0,
+            "col": 0,
+            "staticText": "В-режим"
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 0,
+            "staticText": "Ао"
+          },
+          {
+            "row": 1,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 1,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 2,
+            "col": 0,
+            "staticText": "ЛП"
+          },
+          {
+            "row": 2,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 2,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 3,
+            "col": 0,
+            "staticText": "ЛП/Ао"
+          },
+          {
+            "row": 3,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 0,
+            "staticText": "ЛА/Ао"
+          },
+          {
+            "row": 4,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 4,
+            "col": 2
+          },
+          {
+            "row": 5,
+            "col": 0,
+            "staticText": "Фибр. кольцо КЛА"
+          },
+          {
+            "row": 5,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 5,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 6,
+            "col": 0,
+            "staticText": "Диаметр ЛА"
+          },
+          {
+            "row": 6,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 6,
+            "col": 2,
+            "staticText": "мм"
+          }
+        ],
+        "mergeRegions": [
+          {
+            "row": 0,
+            "col": 0,
+            "rowSpan": 1,
+            "colSpan": 3,
+            "mainCellRow": 0,
+            "mainCellCol": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "168016fb-6bba-4666-8c58-67eb840809da",
+      "title": "Правый желудочек",
+      "order": 4,
+      "fields": [],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 142.1875,
+        "width": 65.625,
+        "height": 32.8125,
+        "pageIndex": 0
+      },
+      "sectionKind": "table",
+      "tableConfig": {
+        "tableRows": 3,
+        "tableCols": 3,
+        "cells": [
+          {
+            "row": 0,
+            "col": 0,
+            "staticText": "Правый желудочек"
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 0,
+            "staticText": "мин диаметр ПП (А4С)"
+          },
+          {
+            "row": 1,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 0,
+            "staticText": "мин диаметр ПЖ (А4С)"
+          },
+          {
+            "row": 2,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 2,
+            "col": 2,
+            "staticText": "мм"
+          }
+        ],
+        "mergeRegions": [
+          {
+            "row": 0,
+            "col": 0,
+            "rowSpan": 1,
+            "colSpan": 3,
+            "mainCellRow": 0,
+            "mainCellCol": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "797b22d4-ee02-44b9-ac38-e1c507f2bddd",
+      "title": "Левый желудочек",
+      "order": 5,
+      "fields": [],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 175.0,
+        "width": 65.625,
+        "height": 71.09375,
+        "pageIndex": 0
+      },
+      "sectionKind": "table",
+      "tableConfig": {
+        "tableRows": 14,
+        "tableCols": 3,
+        "cells": [
+          {
+            "row": 0,
+            "col": 0,
+            "staticText": "Левый желудочек"
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 0,
+            "staticText": "КДО ЛЖ"
+          },
+          {
+            "row": 1,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 1,
+            "col": 2,
+            "staticText": "мл"
+          },
+          {
+            "row": 2,
+            "col": 0,
+            "staticText": "КДОн ЛЖ"
+          },
+          {
+            "row": 2,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 2,
+            "col": 2,
+            "staticText": "мл/м2"
+          },
+          {
+            "row": 3,
+            "col": 0,
+            "staticText": "КСО ЛЖ"
+          },
+          {
+            "row": 3,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 3,
+            "col": 2,
+            "staticText": "мл"
+          },
+          {
+            "row": 4,
+            "col": 0,
+            "staticText": "КСОн ЛЖ"
+          },
+          {
+            "row": 4,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 4,
+            "col": 2,
+            "staticText": "мл/м2"
+          },
+          {
+            "row": 5,
+            "col": 0,
+            "staticText": "ФВ ЛЖ (Sim"
+          },
+          {
+            "row": 5,
+            "col": 1
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 0
+          },
+          {
+            "row": 6,
+            "col": 1
+          },
+          {
+            "row": 6,
+            "col": 2
+          },
+          {
+            "row": 7,
+            "col": 0
+          },
+          {
+            "row": 7,
+            "col": 1
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 0
+          },
+          {
+            "row": 8,
+            "col": 1
+          },
+          {
+            "row": 8,
+            "col": 2
+          },
+          {
+            "row": 9,
+            "col": 0
+          },
+          {
+            "row": 9,
+            "col": 1
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 0
+          },
+          {
+            "row": 10,
+            "col": 1
+          },
+          {
+            "row": 10,
+            "col": 2
+          },
+          {
+            "row": 11,
+            "col": 0
+          },
+          {
+            "row": 11,
+            "col": 1
+          },
+          {
+            "row": 11,
+            "col": 2
+          },
+          {
+            "row": 12,
+            "col": 0
+          },
+          {
+            "row": 12,
+            "col": 1
+          },
+          {
+            "row": 12,
+            "col": 2
+          },
+          {
+            "row": 13,
+            "col": 0
+          },
+          {
+            "row": 13,
+            "col": 1
+          },
+          {
+            "row": 13,
+            "col": 2
+          }
+        ],
+        "mergeRegions": [
+          {
+            "row": 0,
+            "col": 0,
+            "rowSpan": 1,
+            "colSpan": 3,
+            "mainCellRow": 0,
+            "mainCellCol": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "991be4eb-6f0a-4595-9624-64da9078ff74",
+      "title": "М-режим",
+      "order": 6,
+      "fields": [],
+      "printSettings": {
+        "positionX": 71.09375,
+        "positionY": 98.4375,
+        "width": 60.35069444444444,
+        "height": 147.65625,
+        "pageIndex": 0
+      },
+      "sectionKind": "table",
+      "tableConfig": {
+        "tableRows": 20,
+        "tableCols": 3,
+        "cells": [
+          {
+            "row": 0,
+            "col": 0,
+            "staticText": "М-режим"
+          },
+          {
+            "row": 0,
+            "col": 1
+          },
+          {
+            "row": 0,
+            "col": 2
+          },
+          {
+            "row": 1,
+            "col": 0,
+            "staticText": "Левый желудочек"
+          },
+          {
+            "row": 1,
+            "col": 1
+          },
+          {
+            "row": 1,
+            "col": 2
+          },
+          {
+            "row": 2,
+            "col": 0,
+            "staticText": "КДР ЛЖ"
+          },
+          {
+            "row": 2,
+            "col": 1,
+            "isInputField": true,
+            "staticText": "мм"
+          },
+          {
+            "row": 2,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 3,
+            "col": 0,
+            "staticText": "КДРн ЛЖ"
+          },
+          {
+            "row": 3,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 3,
+            "col": 2
+          },
+          {
+            "row": 4,
+            "col": 0,
+            "staticText": "КСР ЛЖ"
+          },
+          {
+            "row": 4,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 4,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 5,
+            "col": 0,
+            "staticText": "КСРн ЛЖ"
+          },
+          {
+            "row": 5,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 5,
+            "col": 2
+          },
+          {
+            "row": 6,
+            "col": 0,
+            "staticText": "ФС (Teich)"
+          },
+          {
+            "row": 6,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 6,
+            "col": 2,
+            "staticText": "%"
+          },
+          {
+            "row": 7,
+            "col": 0,
+            "staticText": "ФВ (Teich)"
+          },
+          {
+            "row": 7,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 7,
+            "col": 2
+          },
+          {
+            "row": 8,
+            "col": 0,
+            "staticText": "EPSS"
+          },
+          {
+            "row": 8,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 8,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 9,
+            "col": 0,
+            "staticText": "МЖПд"
+          },
+          {
+            "row": 9,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 9,
+            "col": 2
+          },
+          {
+            "row": 10,
+            "col": 0,
+            "staticText": "ЗСЛЖд"
+          },
+          {
+            "row": 10,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 10,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 11,
+            "col": 0,
+            "staticText": "ЛВ"
+          },
+          {
+            "row": 11,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 11,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 12,
+            "col": 0,
+            "staticText": "ПВЛА"
+          },
+          {
+            "row": 12,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 12,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 13,
+            "col": 0,
+            "staticText": "ЛВ/ПВЛА"
+          },
+          {
+            "row": 13,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 13,
+            "col": 2
+          },
+          {
+            "row": 14,
+            "col": 0,
+            "staticText": "Правый желудочек"
+          },
+          {
+            "row": 14,
+            "col": 1
+          },
+          {
+            "row": 14,
+            "col": 2
+          },
+          {
+            "row": 15,
+            "col": 0,
+            "staticText": "КДР ПЖ"
+          },
+          {
+            "row": 15,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 15,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 16,
+            "col": 0,
+            "staticText": "КСР ПЖ"
+          },
+          {
+            "row": 16,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 16,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 17,
+            "col": 0,
+            "staticText": "ССП Жд"
+          },
+          {
+            "row": 17,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 17,
+            "col": 2,
+            "staticText": "мм"
+          },
+          {
+            "row": 18,
+            "col": 0,
+            "staticText": "ПЖ/ЛЖ"
+          },
+          {
+            "row": 18,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 18,
+            "col": 2
+          },
+          {
+            "row": 19,
+            "col": 0,
+            "staticText": "ССП Жд/ЗС"
+          },
+          {
+            "row": 19,
+            "col": 1,
+            "isInputField": true
+          },
+          {
+            "row": 19,
+            "col": 2
+          }
+        ],
+        "mergeRegions": [
+          {
+            "row": 0,
+            "col": 0,
+            "rowSpan": 1,
+            "colSpan": 3,
+            "mainCellRow": 0,
+            "mainCellCol": 0
+          },
+          {
+            "row": 1,
+            "col": 0,
+            "rowSpan": 1,
+            "colSpan": 3,
+            "mainCellRow": 1,
+            "mainCellCol": 0
+          },
+          {
+            "row": 14,
+            "col": 0,
+            "rowSpan": 1,
+            "colSpan": 3,
+            "mainCellRow": 14,
+            "mainCellCol": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "conclusion",
+      "title": "Заключение и рекомендации",
+      "order": 7,
+      "fields": [
+        {
+          "key": "diagnosis",
+          "label": "Диагноз",
+          "type": "text",
+          "unit": null,
+          "required": true,
+          "options": null,
+          "validation": null
+        },
+        {
+          "key": "recommendations",
+          "label": "Рекомендации",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null
+        },
+        {
+          "key": "treatment",
+          "label": "Назначенное лечение",
+          "type": "text",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null
+        },
+        {
+          "key": "nextVisit",
+          "label": "Дата следующего визита",
+          "type": "date",
+          "unit": null,
+          "required": false,
+          "options": null,
+          "validation": null
+        }
+      ],
+      "printSettings": {
+        "positionX": 5.46875,
+        "positionY": 246.09375,
+        "width": 191.40625,
+        "height": 32.8125,
+        "pageIndex": 0
+      }
+    }
+  ],
+  "headerPrintSettings": {
+    "fontSize": 12.0,
+    "bold": true,
+    "positionX": 5.46875,
+    "positionY": 5.46875,
+    "width": 191.40625,
+    "height": 27.34375,
+    "pageIndex": 0
+  },
+  "anamnesisPrintSettings": {
+    "positionX": 5.46875,
+    "positionY": 32.8125,
+    "width": 191.40625,
+    "height": 27.34375,
+    "pageIndex": 0
+  }
+}
