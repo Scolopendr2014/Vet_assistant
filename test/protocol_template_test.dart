@@ -370,6 +370,16 @@ void main() {
       final out = f.toJson();
       expect(out.containsKey('printSettings'), false);
     });
+
+    test('fromJson and toJson roundtrip for field type photo (VET-153)', () {
+      final json = {'key': 'pic1', 'label': 'Фото до', 'type': 'photo'};
+      final f = TemplateField.fromJson(json);
+      expect(f.type, 'photo');
+      final out = f.toJson();
+      expect(out['type'], 'photo');
+      final f2 = TemplateField.fromJson(out);
+      expect(f2.type, 'photo');
+    });
   });
 
   group('FieldExtraction', () {
@@ -393,6 +403,186 @@ void main() {
       final e = FieldExtraction.fromJson({});
       expect(e.patterns, isEmpty);
       expect(e.keywords, isEmpty);
+    });
+  });
+
+  group('TemplateSection photos (VET-149)', () {
+    test('fromJson parses sectionKind photos with photosPrintSettings', () {
+      final json = {
+        'id': 'ph1',
+        'title': 'Фотографии',
+        'order': 2,
+        'fields': [],
+        'sectionKind': 'photos',
+        'photosPrintSettings': {
+          'positionX': 20.0,
+          'positionY': 100.0,
+          'width': 170.0,
+          'height': 50.0,
+          'photosPerRow': 3,
+        },
+      };
+      final s = TemplateSection.fromJson(json);
+      expect(s.sectionKind, 'photos');
+      expect(s.isPhotosSection, true);
+      expect(s.photosPrintSettings?.positionX, 20.0);
+      expect(s.photosPrintSettings?.width, 170.0);
+      expect(s.photosPrintSettings?.photosPerRow, 3);
+    });
+
+    test('toJson roundtrip for photos section', () {
+      const ps = PhotosPrintSettings(
+        positionX: 15,
+        positionY: 80,
+        width: 180,
+        height: 45,
+        photosPerRow: 2,
+      );
+      const s = TemplateSection(
+        id: 'ph',
+        title: 'Фотографии',
+        order: 1,
+        fields: [],
+        sectionKind: 'photos',
+        photosPrintSettings: ps,
+      );
+      final out = s.toJson();
+      expect(out['sectionKind'], 'photos');
+      expect(out['photosPrintSettings'], isA<Map<String, dynamic>>());
+      expect(out['photosPrintSettings']['photosPerRow'], 2);
+      final s2 = TemplateSection.fromJson(out);
+      expect(s2.sectionKind, 'photos');
+      expect(s2.photosPrintSettings?.photosPerRow, 2);
+    });
+  });
+
+  group('TemplateSection table (VET-150, VET-172)', () {
+    test('fromJson parses sectionKind table with tableConfig', () {
+      final json = {
+        'id': 't1',
+        'title': 'Таблица',
+        'order': 1,
+        'fields': [],
+        'sectionKind': 'table',
+        'tableConfig': {
+          'tableRows': 3,
+          'tableCols': 2,
+          'cells': [
+            {'row': 0, 'col': 0, 'isInputField': true, 'fieldType': 'text', 'key': 'a', 'label': 'A'},
+            {'row': 0, 'col': 1, 'staticText': 'Статика'},
+          ],
+          'mergeRegions': [
+            {'row': 1, 'col': 0, 'rowSpan': 2, 'colSpan': 2, 'mainCellRow': 1, 'mainCellCol': 0},
+          ],
+          'columnWidthsMm': [40.0, 60.0],
+          'rowHeightsMm': [10.0, 15.0, 15.0],
+        },
+      };
+      final s = TemplateSection.fromJson(json);
+      expect(s.sectionKind, 'table');
+      expect(s.tableConfig?.tableRows, 3);
+      expect(s.tableConfig?.tableCols, 2);
+      expect(s.tableConfig?.cells.length, 2);
+      expect(s.tableConfig?.cells[0].key, 'a');
+      expect(s.tableConfig?.cells[1].staticText, 'Статика');
+      expect(s.tableConfig?.mergeRegions.length, 1);
+      expect(s.tableConfig?.mergeRegions[0].rowSpan, 2);
+      expect(s.tableConfig?.mergeRegions[0].mainCellCol, 0);
+      expect(s.tableConfig?.columnWidthsMm, [40.0, 60.0]);
+      expect(s.tableConfig?.rowHeightsMm, [10.0, 15.0, 15.0]);
+    });
+
+    test('toJson roundtrip for table section', () {
+      const config = TableSectionConfig(
+        tableRows: 3,
+        tableCols: 2,
+        cells: [
+          TableCellConfig(row: 0, col: 0, isInputField: true, key: 'x', label: 'X'),
+          TableCellConfig(row: 0, col: 1, staticText: 'Y'),
+        ],
+        mergeRegions: [
+          TableMergeRegion(row: 0, col: 0, rowSpan: 1, colSpan: 2, mainCellRow: 0, mainCellCol: 0),
+        ],
+        columnWidthsMm: [30.0, 50.0],
+        rowHeightsMm: [12.0, 12.0],
+      );
+      const s = TemplateSection(
+        id: 'sec',
+        title: 'T',
+        order: 1,
+        fields: [],
+        sectionKind: 'table',
+        tableConfig: config,
+      );
+      final out = s.toJson();
+      expect(out['sectionKind'], 'table');
+      expect(out['tableConfig'], isA<Map<String, dynamic>>());
+      expect(out['tableConfig']['tableRows'], 3);
+      expect(out['tableConfig']['columnWidthsMm'], [30.0, 50.0]);
+      final s2 = TemplateSection.fromJson(out);
+      expect(s2.tableConfig, isNotNull);
+      expect(s2.tableConfig!.tableRows, 3);
+      expect(s2.tableConfig!.tableCols, 2);
+      expect(s2.tableConfig!.mergeRegions.length, 1);
+      expect(s2.tableConfig!.columnWidthsMm, [30.0, 50.0]);
+    });
+
+    test('hasDuplicateFieldKeys detects duplicate key in table cells', () {
+      const t = ProtocolTemplate(
+        id: 'x',
+        version: '1',
+        locale: 'ru',
+        title: 'X',
+        sections: [
+          TemplateSection(
+            id: 's1',
+            title: 'S',
+            order: 1,
+            fields: [],
+            sectionKind: 'table',
+            tableConfig: TableSectionConfig(
+              tableRows: 1,
+              tableCols: 2,
+              cells: [
+                TableCellConfig(row: 0, col: 0, isInputField: true, key: 'same'),
+                TableCellConfig(row: 0, col: 1, isInputField: true, key: 'same'),
+              ],
+            ),
+          ),
+        ],
+      );
+      expect(t.hasDuplicateFieldKeys, true);
+    });
+
+    test('ensureUniqueFieldKeys renames duplicate keys in table cells', () {
+      const t = ProtocolTemplate(
+        id: 'x',
+        version: '1',
+        locale: 'ru',
+        title: 'X',
+        sections: [
+          TemplateSection(
+            id: 's1',
+            title: 'S',
+            order: 1,
+            fields: [],
+            sectionKind: 'table',
+            tableConfig: TableSectionConfig(
+              tableRows: 1,
+              tableCols: 2,
+              cells: [
+                TableCellConfig(row: 0, col: 0, isInputField: true, key: 'k'),
+                TableCellConfig(row: 0, col: 1, isInputField: true, key: 'k'),
+              ],
+            ),
+          ),
+        ],
+      );
+      final t2 = t.ensureUniqueFieldKeys();
+      expect(t2.hasDuplicateFieldKeys, false);
+      final keys = t2.sections.first.tableConfig!.cells.where((c) => c.isInputField && c.key != null).map((c) => c.key).toList();
+      expect(keys, contains('k'));
+      expect(keys, contains('k_2'));
     });
   });
 }

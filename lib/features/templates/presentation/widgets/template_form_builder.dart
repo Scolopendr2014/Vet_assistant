@@ -64,7 +64,8 @@ class TemplateFormBuilder extends StatelessWidget {
     );
   }
 
-  /// VET-150: таблица с ячейками — поля ввода и статичный текст.
+  /// VET-150, VET-172: таблица с ячейками (поля ввода / статичный текст), объединения — контент из главной ячейки; размеры столбцов из настроек.
+  /// VET-177: разметка Column+Row вместо Table, чтобы поля ввода в ячейках гарантированно получали жесты и фокус в форме редактирования протокола.
   Widget _buildTableSection(BuildContext context, TemplateSection section) {
     final tc = section.tableConfig;
     if (tc == null) return const SizedBox.shrink();
@@ -77,42 +78,65 @@ class TemplateFormBuilder extends StatelessWidget {
     TableCellConfig cellAt(int r, int c) =>
         cellMap[r * 100 + c] ?? TableCellConfig(row: r, col: c);
 
+    TableCellConfig effectiveCellAt(int r, int c) {
+      for (final m in tc.mergeRegions) {
+        if (r >= m.row && r < m.row + m.rowSpan && c >= m.col && c < m.col + m.colSpan) {
+          return cellAt(m.mainCellRow, m.mainCellCol);
+        }
+      }
+      return cellAt(r, c);
+    }
+
+    final dividerColor = Theme.of(context).dividerColor;
+    final flexValues = tc.columnWidthsMm != null && tc.columnWidthsMm!.length >= cols
+        ? List.generate(cols, (i) {
+            final w = tc.columnWidthsMm![i];
+            return (w > 0 ? w : 24).round();
+          })
+        : List.filled(cols, 1);
+
+    Widget buildCell(int r, int c) {
+      final cell = effectiveCellAt(r, c);
+      final content = cell.isInputField && cell.key != null && cell.key!.isNotEmpty
+          ? _EditableTableCell(
+              key: ValueKey('input-$r-$c'),
+              fieldKey: cell.key!,
+              value: values[cell.key],
+              hint: cell.label?.isEmpty ?? true ? null : cell.label,
+              onChanged: onChanged,
+            )
+          : Text(cell.staticText ?? '');
+      return Container(
+        key: ValueKey('table-cell-$r-$c'),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          border: Border.all(color: dividerColor),
+        ),
+        alignment: Alignment.centerLeft,
+        constraints: const BoxConstraints(minHeight: 40),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: content,
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Table(
-        border: TableBorder.all(color: Theme.of(context).dividerColor),
-        columnWidths: Map.fromIterables(
-          List.generate(cols, (i) => i),
-          List.generate(cols, (_) => const FlexColumnWidth(1)),
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: List.generate(rows, (r) {
-          return TableRow(
-            children: List.generate(cols, (c) {
-              final cell = cellAt(r, c);
-              if (cell.isInputField && cell.key != null) {
-                final value = values[cell.key];
-                return Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: TextFormField(
-                    initialValue: value?.toString(),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      labelText: cell.label?.isEmpty ?? true ? null : cell.label,
-                      border: const OutlineInputBorder(),
-                    ),
-                    onChanged: (v) {
-                      final key = cell.key!;
-                      final n = int.tryParse(v) ?? double.tryParse(v);
-                      onChanged(key, n ?? v);
-                    },
-                  ),
+          return IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: List.generate(cols, (c) {
+                return Expanded(
+                  flex: flexValues[c],
+                  child: buildCell(r, c),
                 );
-              }
-              return Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text(cell.staticText ?? ''),
-              );
-            }),
+              }),
+            ),
           );
         }),
       ),
@@ -122,9 +146,8 @@ class TemplateFormBuilder extends StatelessWidget {
   Widget _buildField(BuildContext context, TemplateField field) {
     final value = values[field.key];
     final error = errors?[field.key];
-    final label = field.unit != null
-        ? '${field.label} (${field.unit})'
-        : field.label;
+    // VET-161: в подписи поля показываем только наименование, без единиц измерения в скобках.
+    final label = field.label;
     if (field.required && field.label.isNotEmpty) {
       // show required in hint
     }
@@ -424,6 +447,80 @@ class _PhotoFieldAddChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// VET-177: редактирование прямо в ячейке — без отдельного «поля ввода», текст в ячейке редактируется на месте.
+class _EditableTableCell extends StatefulWidget {
+  const _EditableTableCell({
+    super.key,
+    required this.fieldKey,
+    required this.value,
+    required this.onChanged,
+    this.hint,
+  });
+
+  final String fieldKey;
+  final dynamic value;
+  final void Function(String key, dynamic value) onChanged;
+  final String? hint;
+
+  @override
+  State<_EditableTableCell> createState() => _EditableTableCellState();
+}
+
+class _EditableTableCellState extends State<_EditableTableCell> {
+  late TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: _valueText);
+  }
+
+  String get _valueText => widget.value?.toString() ?? '';
+
+  @override
+  void didUpdateWidget(covariant _EditableTableCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final newText = _valueText;
+    if (newText != _controller.text && !_focusNode.hasFocus) {
+      _controller.text = newText;
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: widget.hint,
+        hintStyle: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.hintColor,
+        ),
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        contentPadding: EdgeInsets.zero,
+        filled: false,
+      ),
+      style: theme.textTheme.bodyMedium,
+      onChanged: (v) {
+        final n = int.tryParse(v) ?? double.tryParse(v);
+        widget.onChanged(widget.fieldKey, n ?? v);
+      },
     );
   }
 }

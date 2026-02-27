@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -684,7 +685,7 @@ class ProtocolPdfService {
               pw.Header(level: 1, child: pw.Text('Анамнез', style: style12Bold)),
               pw.Text(examination.anamnesis!, style: style11),
             ],
-            if (examination.extractedFields.isNotEmpty) ...[
+            if ((template?.sections ?? []).isNotEmpty || examination.extractedFields.isNotEmpty) ...[
               pw.SizedBox(height: 16),
               ..._buildDataSectionWidgets(
                 examination.extractedFields,
@@ -776,6 +777,20 @@ class ProtocolPdfService {
     for (final section in sortedSections) {
       final ps = section.printSettings;
       if (ps?.positionX == null || ps?.positionY == null || ps?.width == null || ps?.height == null) continue;
+
+      if (section.sectionKind == sectionKindTable) {
+        final tableW = pw.Column(
+          mainAxisSize: pw.MainAxisSize.min,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Header(level: 1, child: pw.Text(section.title, style: style12)),
+            _buildTableSectionPdfWidget(section, examination.extractedFields, font, fontBold, style12, style11),
+          ],
+        );
+        blocks.add((pageIndex: ps!.pageIndex ?? 1, widget: tableW));
+        continue;
+      }
+
       final hasContent = section.fields.any((f) {
         if (f.type == 'photo') return (photoFieldData?[f.key]?.isNotEmpty ?? false);
         return examination.extractedFields.containsKey(f.key);
@@ -951,7 +966,8 @@ class ProtocolPdfService {
     );
   }
 
-  /// VET-150: таблица раздела — ячейки с полем ввода (значение из extractedFields) или статичный текст.
+  /// VET-150, VET-151: таблица раздела — ячейки (поле ввода / статичный текст / картинка), объединения (контент из главной ячейки), размеры в мм.
+  /// VET-178: объединения ячеек учитываются через Stack + Positioned: каждая логическая ячейка (в т.ч. объединённая) рисуется один раз с нужной шириной/высотой.
   static pw.Widget _buildTableSectionPdfWidget(
     TemplateSection section,
     Map<String, dynamic> extractedFields,
@@ -971,34 +987,142 @@ class ProtocolPdfService {
     TableCellConfig cellAt(int r, int c) =>
         cellMap[r * 100 + c] ?? TableCellConfig(row: r, col: c);
 
+    /// Для объединения: контент берём из главной ячейки.
+    TableCellConfig effectiveCellAt(int r, int c) {
+      for (final m in tc.mergeRegions) {
+        if (r >= m.row && r < m.row + m.rowSpan && c >= m.col && c < m.col + m.colSpan) {
+          return cellAt(m.mainCellRow, m.mainCellCol);
+        }
+      }
+      return cellAt(r, c);
+    }
+
     final cellStyle = font != null
         ? pw.TextStyle(font: font, fontSize: 11)
         : const pw.TextStyle(fontSize: 11);
 
+    /// Ширины столбцов в pt.
+    final colWidthsPt = List.generate(cols, (i) {
+      if (tc.columnWidthsMm != null && i < tc.columnWidthsMm!.length) {
+        final w = tc.columnWidthsMm![i];
+        return _mmToPt(w > 0 ? w : 1);
+      }
+      return 24.0;
+    });
+    /// Высоты строк в pt (по умолчанию 12 pt).
+    const defaultRowHeightPt = 12.0;
+    final rowHeightsPt = List.generate(rows, (r) {
+      if (tc.rowHeightsMm != null && r < tc.rowHeightsMm!.length && tc.rowHeightsMm![r] > 0) {
+        return _mmToPt(tc.rowHeightsMm![r]);
+      }
+      return defaultRowHeightPt;
+    });
+
+    final totalW = colWidthsPt.fold<double>(0, (a, b) => a + b);
+    final totalH = rowHeightsPt.fold<double>(0, (a, b) => a + b);
+
+    /// (r,c) входит в объединение не как главная (верхняя-левая) ячейка — не рисуем, место займёт объединённая ячейка.
+    bool isCoveredByMerge(int r, int c) {
+      for (final m in tc.mergeRegions) {
+        if (r >= m.row && r < m.row + m.rowSpan && c >= m.col && c < m.col + m.colSpan) {
+          if (r != m.row || c != m.col) return true;
+        }
+      }
+      return false;
+    }
+
+    final positionedChildren = <pw.Widget>[];
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        if (isCoveredByMerge(r, c)) continue;
+        double left = 0;
+        for (var i = 0; i < c; i++) {
+          left += colWidthsPt[i];
+        }
+        double top = 0;
+        for (var i = 0; i < r; i++) {
+          top += rowHeightsPt[i];
+        }
+        double w = colWidthsPt[c];
+        double h = rowHeightsPt[r];
+        for (final m in tc.mergeRegions) {
+          if (m.row == r && m.col == c) {
+            w = 0;
+            for (var i = 0; i < m.colSpan && c + i < cols; i++) {
+              w += colWidthsPt[c + i];
+            }
+            h = 0;
+            for (var i = 0; i < m.rowSpan && r + i < rows; i++) {
+              h += rowHeightsPt[r + i];
+            }
+            break;
+          }
+        }
+        final cell = effectiveCellAt(r, c);
+        pw.Widget content;
+        if (cell.imageRef != null && cell.imageRef!.isNotEmpty) {
+          content = _tableCellImageWidget(cell.imageRef!, cellStyle);
+        } else {
+          final text = cell.isInputField && cell.key != null
+              ? (extractedFields[cell.key]?.toString() ?? '')
+              : (cell.staticText ?? '');
+          content = pw.Text(text, style: cellStyle);
+        }
+        positionedChildren.add(
+          pw.Positioned(
+            left: left,
+            top: top,
+            right: totalW - left - w,
+            bottom: totalH - top - h,
+            child: pw.Container(
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.black),
+              ),
+              padding: const pw.EdgeInsets.all(4),
+              child: content,
+            ),
+          ),
+        );
+      }
+    }
+
     return pw.Padding(
       padding: const pw.EdgeInsets.only(top: 8),
-      child: pw.Table(
-        border: pw.TableBorder.all(color: PdfColors.black),
-        columnWidths: Map.fromIterables(
-          List.generate(cols, (i) => i),
-          List.generate(cols, (_) => const pw.FlexColumnWidth(1)),
+      child: pw.SizedBox(
+        width: totalW,
+        height: totalH,
+        child: pw.Stack(
+          children: positionedChildren,
         ),
-        children: List.generate(rows, (r) {
-          return pw.TableRow(
-            children: List.generate(cols, (c) {
-              final cell = cellAt(r, c);
-              final text = cell.isInputField && cell.key != null
-                  ? (extractedFields[cell.key]?.toString() ?? '')
-                  : (cell.staticText ?? '');
-              return pw.Padding(
-                padding: const pw.EdgeInsets.all(4),
-                child: pw.Text(text, style: cellStyle),
-              );
-            }),
-          );
-        }),
       ),
     );
+  }
+
+  /// Загрузка изображения для ячейки таблицы (путь к файлу или data URL). При ошибке — пустой виджет.
+  static pw.Widget _tableCellImageWidget(String imageRef, pw.TextStyle fallbackStyle) {
+    try {
+      final bytes = _imageRefToBytes(imageRef);
+      if (bytes == null || bytes.isEmpty) return pw.SizedBox();
+      final img = pw.MemoryImage(Uint8List.fromList(bytes));
+      return pw.Container(
+        constraints: const pw.BoxConstraints(maxWidth: 80, maxHeight: 60),
+        child: pw.Image(img, fit: pw.BoxFit.contain),
+      );
+    } catch (_) {
+      return pw.SizedBox();
+    }
+  }
+
+  static List<int>? _imageRefToBytes(String imageRef) {
+    if (imageRef.startsWith('data:') && imageRef.contains('base64,')) {
+      final base64 = imageRef.split('base64,').last;
+      return base64Decode(base64);
+    }
+    final file = File(imageRef);
+    if (file.existsSync()) {
+      return file.readAsBytesSync();
+    }
+    return null;
   }
 
   static pw.Widget _buildPhotosFlowWidget(
@@ -1044,15 +1168,49 @@ class ProtocolPdfService {
         return ay.compareTo(by);
       });
     final hasAnyAutoGrow = sorted.any((s) =>
-        s.fields.any((f) => f.printSettings?.autoGrowHeight == true));
+        s.sectionKind != sectionKindTable && s.fields.any((f) => f.printSettings?.autoGrowHeight == true));
     if (hasAnyAutoGrow) {
       return _buildFlowSectionsForPage(
           extractedFields, sorted, font, fontBold, contentWidth, contentHeight);
     }
+    final sectionFont = font;
+    final sectionFontBold = fontBold ?? font;
+    pw.TextStyle style12 = sectionFont != null
+        ? pw.TextStyle(font: sectionFontBold ?? sectionFont, fontSize: 12)
+        : pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold);
+    pw.TextStyle style11 = sectionFont != null
+        ? pw.TextStyle(font: sectionFont, fontSize: 11)
+        : pw.TextStyle(fontSize: 11); // ignore: prefer_const_constructors
+
     final children = <pw.Widget>[];
     for (final section in sorted) {
       final ps = section.printSettings;
       if (ps?.positionX == null || ps?.positionY == null || ps?.width == null || ps?.height == null) continue;
+
+      if (section.sectionKind == sectionKindTable) {
+        final left = _mmToPt(ps!.positionX!);
+        final top = _mmToPt(ps.positionY!);
+        final wPt = _mmToPt(ps.width!);
+        final hPt = _mmToPt(ps.height!);
+        final tableW = _buildTableSectionPdfWidget(section, extractedFields, font, fontBold, style12, style11);
+        children.add(pw.Positioned(
+          left: left,
+          top: top,
+          right: contentWidth - left - wPt,
+          bottom: contentHeight - top - hPt,
+          child: pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(section.title, style: style12),
+              pw.SizedBox(height: 4),
+              tableW,
+            ],
+          ),
+        ));
+        continue;
+      }
+
       final sectionKeys = section.fields.map((f) => f.key).toSet();
       final sectionEntries = extractedFields.entries.where((e) => sectionKeys.contains(e.key)).toList();
       if (sectionEntries.isEmpty) continue;
@@ -1206,10 +1364,48 @@ class ProtocolPdfService {
     final minLeftPt = _mmToPt(minLeft);
     final minTopPt = _mmToPt(minTop);
 
+    final sectionFont = font;
+    final sectionFontBold = fontBold ?? font;
+    pw.TextStyle style12 = sectionFont != null
+        ? pw.TextStyle(font: sectionFontBold ?? sectionFont, fontSize: 12)
+        : pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold);
+    pw.TextStyle style11 = sectionFont != null
+        ? pw.TextStyle(font: sectionFont, fontSize: 11)
+        : pw.TextStyle(fontSize: 11); // ignore: prefer_const_constructors
+
     final columnChildren = <pw.Widget>[];
     for (final section in sorted) {
       final ps = section.printSettings;
       if (ps?.positionX == null || ps?.positionY == null || ps?.width == null || ps?.height == null) continue;
+
+      if (section.sectionKind == sectionKindTable) {
+        final left = _mmToPt(ps!.positionX!);
+        final wPt = _mmToPt(ps.width!);
+        final hPt = _mmToPt(ps.height!);
+        final tableW = _buildTableSectionPdfWidget(section, extractedFields, font, fontBold, style12, style11);
+        columnChildren.add(pw.Padding(
+          padding: pw.EdgeInsets.only(left: left - minLeftPt, bottom: 8),
+          child: pw.SizedBox(
+            width: wPt,
+            child: pw.ClipRect(
+              child: pw.SizedBox(
+                height: hPt,
+                child: pw.Column(
+                  mainAxisSize: pw.MainAxisSize.min,
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(section.title, style: style12),
+                    pw.SizedBox(height: 4),
+                    tableW,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ));
+        continue;
+      }
+
       final sectionKeys = section.fields.map((f) => f.key).toSet();
       final sectionEntries = extractedFields.entries.where((e) => sectionKeys.contains(e.key)).toList();
       if (sectionEntries.isEmpty) continue;
@@ -1219,8 +1415,6 @@ class ProtocolPdfService {
       final hPt = _mmToPt(ps.height!);
       final fontSize = ps.fontSize ?? 12.0;
       final useItalic = ps.italic;
-      final sectionFont = font;
-      final sectionFontBold = fontBold ?? font;
       pw.TextStyle titleStyle = sectionFont != null
           ? pw.TextStyle(font: sectionFontBold ?? sectionFont, fontSize: fontSize)
           : pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold);
@@ -1353,9 +1547,43 @@ class ProtocolPdfService {
   ) {
     final sorted = List<TemplateSection>.from(template.sections)..sort((a, b) => a.order.compareTo(b.order));
     final children = <pw.Widget>[];
+    final sectionFont = font;
+    final sectionFontBold = fontBold ?? font;
+    pw.TextStyle style12 = sectionFont != null
+        ? pw.TextStyle(font: sectionFontBold ?? sectionFont, fontSize: 12)
+        : pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold);
+    pw.TextStyle style11 = sectionFont != null
+        ? pw.TextStyle(font: sectionFont, fontSize: 11)
+        : pw.TextStyle(fontSize: 11); // ignore: prefer_const_constructors
+
     for (final section in sorted) {
       final ps = section.printSettings;
       if (ps?.positionX == null || ps?.positionY == null || ps?.width == null || ps?.height == null) continue;
+
+      if (section.sectionKind == sectionKindTable) {
+        final left = _mmToPt(ps!.positionX!);
+        final top = _mmToPt(ps.positionY!);
+        final wPt = _mmToPt(ps.width!);
+        final hPt = _mmToPt(ps.height!);
+        final tableW = _buildTableSectionPdfWidget(section, extractedFields, font, fontBold, style12, style11);
+        children.add(pw.Positioned(
+          left: left,
+          top: top,
+          right: contentWidth - left - wPt,
+          bottom: contentHeight - top - hPt,
+          child: pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(section.title, style: style12),
+              pw.SizedBox(height: 4),
+              tableW,
+            ],
+          ),
+        ));
+        continue;
+      }
+
       final sectionKeys = section.fields.map((f) => f.key).toSet();
       final sectionEntries = extractedFields.entries.where((e) => sectionKeys.contains(e.key)).toList();
       if (sectionEntries.isEmpty) continue;

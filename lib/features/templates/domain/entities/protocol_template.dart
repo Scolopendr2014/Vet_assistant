@@ -467,7 +467,7 @@ class TableCellConfig {
   final String? key;
   final String? label;
   final String? staticText;
-  /// VET-151: ссылка на статичное изображение в шаблоне (id медиа или путь).
+  /// VET-151: ссылка на статичное изображение в шаблоне. Хранится путь к файлу в директории приложения (например template_cell_images/) или data URL (data:image/...;base64,...) для встраивания в экспорт.
   final String? imageRef;
 
   factory TableCellConfig.fromJson(Map<String, dynamic> json) {

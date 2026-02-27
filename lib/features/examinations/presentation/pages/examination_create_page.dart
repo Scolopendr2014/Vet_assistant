@@ -12,7 +12,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/di/di_container.dart';
 import '../../domain/entities/examination.dart';
-import '../../domain/entities/examination_photo.dart';
+import '../../domain/usecases/save_examination_use_case.dart';
 import '../../domain/repositories/examination_repository.dart';
 import '../../services/audio_playback_service.dart';
 import '../../services/audio_recorder_service.dart';
@@ -118,8 +118,36 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     }
 
     return Scaffold(
+      // VET-180: в режиме редактирования в заголовке AppBar выводим данные о пациенте.
       appBar: AppBar(
-        title: Text(isEditMode ? 'Редактирование протокола' : 'Новый протокол осмотра'),
+        title: isEditMode && effectivePatientId != null && patientAsync != null
+            ? patientAsync.when(
+                data: (p) {
+                  if (p == null) return const Text('Протокол');
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        p.name ?? p.species ?? '—',
+                        style: Theme.of(context).textTheme.titleMedium,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                      Text(
+                        p.ownerName ?? '—',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ],
+                  );
+                },
+                loading: () => const Text('Протокол'),
+                error: (_, __) => const Text('Протокол'),
+              )
+            : Text(isEditMode ? 'Протокол' : 'Новый протокол осмотра'),
         actions: [
           if (_selectedTemplateId != null)
             IconButton(
@@ -212,49 +240,26 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (effectivePatientId != null && patientAsync != null)
+        // VET-180: в режиме создания пациент фиксирован сверху; в режиме редактирования — заголовок и «Клиника» внутри скролла.
+        if (!isEditMode && effectivePatientId != null && patientAsync != null)
           patientAsync.when(
             data: (p) => p != null
                 ? Padding(
                     padding: const EdgeInsets.all(16),
-                    child: isEditMode && _selectedTemplateId != null
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Icon(
-                                iconForTemplateId(_selectedTemplateId!),
-                                size: 28,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Card(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Text(
-                                      'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
-                                      style: Theme.of(context).textTheme.titleSmall,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        : Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Text(
-                                'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                            ),
-                          ),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                    ),
                   )
                 : const SizedBox.shrink(),
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
-        if (isEditMode) _buildClinicSelector(context),
         Expanded(
           child: SingleChildScrollView(
             padding: EdgeInsets.only(
@@ -263,6 +268,23 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (isEditMode && effectivePatientId != null && patientAsync != null)
+                  patientAsync.when(
+                    data: (p) => p != null
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                            child: Text(
+                              'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                  ),
+                if (isEditMode) _buildClinicSelector(context),
                 if (!isEditMode)
                   templatesAsync.when(
             data: (templates) {
@@ -432,14 +454,15 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                 ),
               ),
             _TemplateFormSection(
+              key: ValueKey('form-$_initializedForEdit'),
               templateId: _selectedTemplateId!,
               templateVersion: _existingExam?.templateVersion,
               values: _formValues,
               onChanged: (key, value) {
-                setState(() {
-                  _formValues[key] = value;
-                  _validationError = null;
-                });
+                _formValues[key] = value;
+                _validationError = null;
+                // VET-177: отложенный setState, чтобы не терять фокус в полях таблицы при каждом нажатии клавиши.
+                WidgetsBinding.instance.addPostFrameCallback((_) => setState(() {}));
               },
               scrollable: false,
               onPickPhotoForField: _pickPhotoForField,
@@ -742,121 +765,54 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
       return;
     }
     if (_selectedTemplateId == null) return;
-    final templateAsync = ref.read(templateByIdProvider(_selectedTemplateId!).future);
-    final template = await templateAsync;
-    if (template == null) {
-      setState(() => _validationError = 'Шаблон не найден');
-      return;
-    }
-    // Проверка обязательных полей (ТЗ 4.3.7). VET-153: для поля «Фото» — хотя бы одно фото.
-    final missing = <String>[];
-    for (final section in template.sections) {
-      for (final field in section.fields) {
-        if (field.required) {
-          final v = _formValues[field.key];
-          if (field.type == 'photo') {
-            if (v is! List || v.isEmpty) missing.add(field.label);
-          } else if (v == null || (v is String && v.trim().isEmpty)) {
-            missing.add(field.label);
-          }
-        }
-      }
-    }
-    if (missing.isNotEmpty) {
-      setState(() => _validationError = 'Заполните обязательные поля: ${missing.join(", ")}');
-      return;
-    }
-    setState(() => _validationError = null);
-    final repo = getIt<ExaminationRepository>();
-    final now = DateTime.now();
-    final examinationId = isEditMode ? _existingExam!.id : const Uuid().v4();
-    final existingPhotos = isEditMode ? _existingExam!.photos : <ExaminationPhoto>[];
-    // VET-169: фотографии только если в шаблоне есть раздел «Фотографии».
-    final hasPhotosSection =
-        template.sections.any((s) => s.sectionKind == sectionKindPhotos);
-    final photos = hasPhotosSection
-        ? [
-            for (var i = 0; i < _photos.length; i++)
-              () {
-                ExaminationPhoto? existing;
-                for (final p in existingPhotos) {
-                  if (p.filePath == _photos[i].path) {
-                    existing = p;
-                    break;
-                  }
-                }
-                return ExaminationPhoto(
-                  id: existing?.id ?? const Uuid().v4(),
-                  examinationId: examinationId,
-                  filePath: _photos[i].path,
-                  description: _photos[i].description?.trim().isEmpty ?? true
-                      ? null
-                      : _photos[i].description?.trim(),
-                  takenAt: existing?.takenAt ?? now,
-                  orderIndex: i,
-                  createdAt: existing?.createdAt ?? now,
-                );
-              }(),
-          ]
-        : <ExaminationPhoto>[];
-    String? vetClinicId;
+
+    String? preferredClinicId;
     if (isEditMode) {
-      vetClinicId = _selectedClinicId ?? _existingExam!.vetClinicId;
+      preferredClinicId = _selectedClinicId ?? _existingExam?.vetClinicId;
     } else {
       final prefs = await SharedPreferences.getInstance();
-      final clinicId = prefs.getString('vet_current_clinic_id');
-      if (clinicId != null) {
-        final clinic = await getIt<VetClinicRepository>().getById(clinicId);
-        if (clinic != null) vetClinicId = clinic.id;
-      }
-      if (vetClinicId == null) {
-        final profile = await getIt<VetProfileRepository>().get();
-        if (profile != null) {
-          final clinics = await getIt<VetClinicRepository>().getByProfileId(profile.id);
-          if (clinics.length == 1) vetClinicId = clinics.first.id;
-        }
-      }
+      preferredClinicId = prefs.getString('vet_current_clinic_id');
     }
 
-    final examination = Examination(
-      id: examinationId,
+    final input = SaveExaminationInput(
       patientId: effectivePatientId,
-      templateType: template.id,
-      templateVersion: template.version,
-      examinationDate: isEditMode ? _existingExam!.examinationDate : now,
-      veterinarianName: isEditMode ? _existingExam!.veterinarianName : null,
-      audioFilePaths: List.from(_audioPaths),
+      templateId: _selectedTemplateId!,
+      formValues: Map<String, dynamic>.from(_formValues),
+      examinationId: isEditMode ? _existingExam!.id : null,
       anamnesis: _anamnesisController.text.trim().isEmpty
           ? null
           : _anamnesisController.text.trim(),
-      sttText: isEditMode ? _existingExam!.sttText : null,
-      sttProvider: isEditMode ? _existingExam!.sttProvider : null,
-      sttModelVersion: isEditMode ? _existingExam!.sttModelVersion : null,
-      extractedFields: Map<String, dynamic>.from(_formValues),
-      validationStatus: 'valid',
-      warnings: const [],
-      pdfPath: isEditMode ? _existingExam!.pdfPath : null,
-      vetClinicId: vetClinicId,
-      createdAt: isEditMode ? _existingExam!.createdAt : now,
-      updatedAt: now,
-      photos: photos,
+      photos: _photos.map((e) => (path: e.path, description: e.description)).toList(),
+      audioPaths: List.from(_audioPaths),
+      preferredClinicId: preferredClinicId,
+      existingExam: _existingExam,
     );
-    await repo.save(examination);
+
+    final result = await getIt<SaveExaminationUseCase>().call(input);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(isEditMode ? 'Протокол обновлён' : 'Протокол сохранён')),
-    );
-    ref.invalidate(patientDetailProvider(effectivePatientId));
-    ref.invalidate(examinationsByPatientProvider(effectivePatientId));
-    if (isEditMode) {
-      ref.invalidate(examinationByIdProvider(examinationId));
+
+    switch (result) {
+      case SaveExaminationValidationError(:final message):
+        setState(() => _validationError = message);
+        return;
+      case SaveExaminationSuccess(:final examinationId):
+        setState(() => _validationError = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isEditMode ? 'Протокол обновлён' : 'Протокол сохранён')),
+        );
+        ref.invalidate(patientDetailProvider(effectivePatientId));
+        ref.invalidate(examinationsByPatientProvider(effectivePatientId));
+        if (isEditMode) {
+          ref.invalidate(examinationByIdProvider(examinationId));
+        }
+        context.go('/patients/$effectivePatientId');
     }
-    context.go('/patients/$effectivePatientId');
   }
 }
 
 class _TemplateFormSection extends ConsumerWidget {
   const _TemplateFormSection({
+    super.key,
     required this.templateId,
     this.templateVersion,
     required this.values,

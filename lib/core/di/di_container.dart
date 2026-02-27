@@ -17,6 +17,7 @@ import '../../features/vet_profile/domain/repositories/vet_profile_repository.da
 import '../../features/vet_profile/data/repositories/vet_profile_repository_impl.dart';
 import '../../features/vet_profile/domain/repositories/vet_clinic_repository.dart';
 import '../../features/vet_profile/data/repositories/vet_clinic_repository_impl.dart';
+import '../../features/examinations/domain/usecases/save_examination_use_case.dart';
 
 final getIt = GetIt.instance;
 
@@ -63,5 +64,15 @@ Future<void> setupDependencies() async {
   );
   getIt.registerSingleton<VetClinicRepository>(
     VetClinicRepositoryImpl(db),
+  );
+
+  // Use case: сохранение протокола осмотра (разгрузка ExaminationCreatePage)
+  getIt.registerSingleton<SaveExaminationUseCase>(
+    SaveExaminationUseCase(
+      examinationRepository: getIt<ExaminationRepository>(),
+      templateRepository: getIt<TemplateRepository>(),
+      vetProfileRepository: getIt<VetProfileRepository>(),
+      vetClinicRepository: getIt<VetClinicRepository>(),
+    ),
   );
 }

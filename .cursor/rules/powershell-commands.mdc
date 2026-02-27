@@ -1,0 +1,12 @@
+---
+description: В PowerShell цепочки команд — через ";", не "&&"
+alwaysApply: true
+---
+
+# PowerShell: цепочка команд
+
+В **PowerShell** оператор `&&` не поддерживается (в отличие от Bash/cmd).
+
+- **Использовать:** `;` для последовательного выполнения команд.
+- **Пример:** `cd c:\DEV\Vet_assistant; flutter build apk` — правильно.
+- **Не использовать:** `cd c:\DEV\Vet_assistant && flutter build apk` — в PowerShell приведёт к ошибке.

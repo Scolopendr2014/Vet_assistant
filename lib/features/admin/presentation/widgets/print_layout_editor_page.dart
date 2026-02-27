@@ -487,7 +487,7 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
     );
   }
 
-  /// VET-151: сетка ячеек таблицы в визуальном редакторе (размеры в мм, объединения не отрисовываем в превью).
+  /// VET-151: сетка ячеек таблицы в визуальном редакторе (размеры в мм, объединения — одна ячейка на область).
   Widget _buildTableBlockContent(
     BuildContext context,
     String title,
@@ -510,20 +510,76 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
     const titleHeight = 22.0;
     final rows = tc.tableRows.clamp(1, 20);
     final cols = tc.tableCols.clamp(1, 10);
-    final availableW = widthPx - 12;
-    final availableH = heightPx - titleHeight - 12;
-    final colWidths = List.generate(cols, (c) {
-      if (tc.columnWidthsMm != null && c < tc.columnWidthsMm!.length) {
-        return (tc.columnWidthsMm![c] * scale).clamp(8.0, availableW);
+    final availableW = (widthPx - 12).clamp(1.0, double.infinity);
+    final availableH = (heightPx - titleHeight - 12).clamp(1.0, double.infinity);
+    final colWidthsPx = List.generate(cols, (c) {
+      if (tc.columnWidthsMm != null && c < tc.columnWidthsMm!.length && tc.columnWidthsMm![c] > 0) {
+        return (tc.columnWidthsMm![c] * scale).clamp(4.0, math.max(4.0, availableW));
       }
       return availableW / cols;
     });
-    final rowHeights = List.generate(rows, (r) {
-      if (tc.rowHeightsMm != null && r < tc.rowHeightsMm!.length) {
-        return (tc.rowHeightsMm![r] * scale).clamp(8.0, availableH);
+    final rowHeightsPx = List.generate(rows, (r) {
+      if (tc.rowHeightsMm != null && r < tc.rowHeightsMm!.length && tc.rowHeightsMm![r] > 0) {
+        return (tc.rowHeightsMm![r] * scale).clamp(4.0, math.max(4.0, availableH));
       }
       return availableH / rows;
     });
+    final totalW = colWidthsPx.fold<double>(0, (a, b) => a + b);
+    final totalH = rowHeightsPx.fold<double>(0, (a, b) => a + b);
+
+    /// (r,c) входит в объединение не как главная и не как верхняя-левая?
+    bool isCoveredByMerge(int r, int c) {
+      for (final m in tc.mergeRegions) {
+        if (r >= m.row && r < m.row + m.rowSpan && c >= m.col && c < m.col + m.colSpan) {
+          if (r != m.row || c != m.col) return true;
+        }
+      }
+      return false;
+    }
+
+    final cells = <Widget>[];
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        if (isCoveredByMerge(r, c)) continue;
+        double left = 0;
+        for (var i = 0; i < c; i++) {
+          left += colWidthsPx[i];
+        }
+        double top = 0;
+        for (var i = 0; i < r; i++) {
+          top += rowHeightsPx[i];
+        }
+        double w = colWidthsPx[c].toDouble();
+        double h = rowHeightsPx[r].toDouble();
+        for (final m in tc.mergeRegions) {
+          if (m.row == r && m.col == c) {
+            w = 0;
+            for (var i = 0; i < m.colSpan && c + i < cols; i++) {
+              w += colWidthsPx[c + i];
+            }
+            h = 0;
+            for (var i = 0; i < m.rowSpan && r + i < rows; i++) {
+              h += rowHeightsPx[r + i];
+            }
+            break;
+          }
+        }
+        cells.add(
+          Positioned(
+            left: left,
+            top: top,
+            width: w.clamp(4.0, math.max(4.0, totalW)),
+            height: h.clamp(4.0, math.max(4.0, totalH)),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: color.withValues(alpha: 0.7)),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -538,22 +594,14 @@ class _PrintLayoutEditorPageState extends State<PrintLayoutEditorPage> {
           overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 4),
-        ...List.generate(rows, (r) {
-          final h = r < rowHeights.length ? rowHeights[r].clamp(4.0, 80.0) : availableH / rows;
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(cols, (c) {
-              final w = c < colWidths.length ? colWidths[c].clamp(4.0, 100.0) : availableW / cols;
-              return Container(
-                width: w,
-                height: h,
-                decoration: BoxDecoration(
-                  border: Border.all(color: color.withValues(alpha: 0.7)),
-                ),
-              );
-            }),
-          );
-        }),
+        SizedBox(
+          width: totalW.clamp(1.0, availableW),
+          height: totalH.clamp(1.0, availableH),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: cells,
+          ),
+        ),
       ],
     );
   }
