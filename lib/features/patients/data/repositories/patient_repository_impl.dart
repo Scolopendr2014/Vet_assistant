@@ -41,8 +41,9 @@ class PatientRepositoryImpl implements PatientRepository {
 
   @override
   Future<int> count() async {
-    final list = await _db.select(_db.patients).get();
-    return list.length;
+    final countExpr = _db.patients.id.count();
+    final row = await (_db.selectOnly(_db.patients)..addColumns([countExpr])).getSingle();
+    return row.read(countExpr) ?? 0;
   }
 
   @override

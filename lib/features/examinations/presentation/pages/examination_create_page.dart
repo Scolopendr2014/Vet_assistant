@@ -3,22 +3,20 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/config/app_config.dart';
-import '../../../../core/di/di_container.dart';
 import '../../domain/entities/examination.dart';
 import '../../domain/usecases/save_examination_use_case.dart';
 import '../../domain/repositories/examination_repository.dart';
 import '../../services/audio_playback_service.dart';
 import '../../services/audio_recorder_service.dart';
-import '../../../templates/domain/entities/protocol_template.dart' show ProtocolTemplate, sectionKindPhotos;
+import '../../../templates/domain/entities/protocol_template.dart' show ProtocolTemplate, sectionKindPhotos, sectionKindTable;
 import '../../../templates/presentation/providers/template_providers.dart';
-import '../../../speech/domain/services/stt_router.dart';
+import '../../../speech/providers/stt_providers.dart';
 import '../../../speech/services/stt_extraction_service.dart';
 import '../../../templates/presentation/widgets/template_form_builder.dart';
 import '../../../patients/presentation/providers/patient_providers.dart';
@@ -70,6 +68,31 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     _audioRecorder.dispose();
     _audioPlayback.dispose();
     super.dispose();
+  }
+
+  /// VET-191: заполняет _formValues значениями по умолчанию из полей шаблона (только для ключей, которых ещё нет).
+  void _fillDefaultValuesFromTemplate(ProtocolTemplate template) {
+    for (final section in template.sections) {
+      if (section.sectionKind == sectionKindPhotos) continue;
+      if (section.sectionKind == sectionKindTable) continue;
+      for (final field in section.fields) {
+        final dv = field.defaultValue;
+        if (dv == null || dv.isEmpty || _formValues.containsKey(field.key)) continue;
+        dynamic value;
+        switch (field.type) {
+          case 'bool':
+            value = dv == 'true' || dv == '1';
+            break;
+          case 'number':
+            value = int.tryParse(dv) ?? double.tryParse(dv);
+            if (value == null) value = dv;
+            break;
+          default:
+            value = dv;
+        }
+        _formValues[field.key] = value;
+      }
+    }
   }
 
   void _initializeFromExam(Examination exam) {
@@ -228,7 +251,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     );
   }
 
-  /// VET-049: скроллится весь протокол кроме поля «Пациент». VET-169: templateAsync для блока «Фотографии».
+  /// VET-049: скроллится весь протокол. VET-192: в теле формы — тип протокола; пациент в заголовке. VET-169: templateAsync для блока «Фотографии».
   Widget _buildForm(
     BuildContext context,
     AsyncValue<List<ProtocolTemplate>> templatesAsync,
@@ -240,18 +263,29 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // VET-180: в режиме создания пациент фиксирован сверху; в режиме редактирования — заголовок и «Клиника» внутри скролла.
-        if (!isEditMode && effectivePatientId != null && patientAsync != null)
-          patientAsync.when(
-            data: (p) => p != null
+        // VET-192: в теле формы — иконка и название типа протокола в две строки (без подписи «Тип протокола»).
+        if (!isEditMode && _selectedTemplateId != null && templateAsync != null)
+          templateAsync.when(
+            data: (template) => template != null
                 ? Padding(
                     padding: const EdgeInsets.all(16),
                     child: Card(
                       child: Padding(
                         padding: const EdgeInsets.all(12),
-                        child: Text(
-                          'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
-                          style: Theme.of(context).textTheme.titleSmall,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(iconForTemplateId(template.id), size: 24),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                template.title,
+                                style: Theme.of(context).textTheme.titleSmall,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -268,16 +302,28 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (isEditMode && effectivePatientId != null && patientAsync != null)
-                  patientAsync.when(
-                    data: (p) => p != null
+                // VET-192: в теле формы — иконка и название типа протокола в две строки (без подписи «Тип протокола»).
+                if (isEditMode && _selectedTemplateId != null && templateAsync != null)
+                  templateAsync.when(
+                    data: (template) => template != null
                         ? Padding(
                             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                            child: Text(
-                              'Пациент: ${p.name ?? p.species} · ${p.ownerName}',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(iconForTemplateId(template.id), size: 24),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    template.title,
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
+                                ),
+                              ],
                             ),
                           )
                         : const SizedBox.shrink(),
@@ -315,7 +361,11 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
                             onSelected: (selected) {
                               setState(() {
                                 _selectedTemplateId = selected ? t.id : null;
-                                if (!selected) _formValues.clear();
+                                if (!selected) {
+                                  _formValues.clear();
+                                } else {
+                                  _fillDefaultValuesFromTemplate(t);
+                                }
                               });
                             },
                           ),
@@ -623,7 +673,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     if (template == null || !mounted) return;
     setState(() => _isTranscribing = true);
     try {
-      final router = getIt<SttRouter>();
+      final router = ref.read(sttRouterProvider);
       final result = await router.transcribe(_audioPaths.first);
       if (!mounted) return;
       final extracted = SttExtractionService.extractFields(
@@ -770,8 +820,8 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
     if (isEditMode) {
       preferredClinicId = _selectedClinicId ?? _existingExam?.vetClinicId;
     } else {
-      final prefs = await SharedPreferences.getInstance();
-      preferredClinicId = prefs.getString('vet_current_clinic_id');
+      preferredClinicId =
+          await ref.read(currentClinicServiceProvider).getCurrentClinicId();
     }
 
     final input = SaveExaminationInput(
@@ -788,7 +838,7 @@ class _ExaminationCreatePageState extends ConsumerState<ExaminationCreatePage> {
       existingExam: _existingExam,
     );
 
-    final result = await getIt<SaveExaminationUseCase>().call(input);
+    final result = await ref.read(saveExaminationUseCaseProvider).call(input);
     if (!mounted) return;
 
     switch (result) {

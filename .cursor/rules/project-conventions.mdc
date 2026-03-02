@@ -18,6 +18,7 @@ alwaysApply: false
   - `presentation/` — страницы (pages), провайдеры (providers), виджеты (widgets)
 - **Общее** — `lib/core/`: конфиг (`config/`), БД (`database/`), DI (`di/`).
 - Не смешивать слои: domain не зависит от data и presentation; data не импортирует presentation.
+- **DI в presentation (VET-185, VET-188):** в страницах и виджетах доступ к репозиториям, сервисам и use case'ам — только через провайдеры Riverpod (`ref.read(...Provider)`), не через `getIt<...>()`. Регистрация — в GetIt; провайдеры в фичах оборачивают GetIt для UI. Подробнее: [docs/ARCHITECTURE_DI.md](docs/ARCHITECTURE_DI.md).
 
 ## Стиль и линтер
 

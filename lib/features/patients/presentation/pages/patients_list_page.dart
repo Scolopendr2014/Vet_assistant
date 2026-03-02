@@ -4,11 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import 'package:permission_handler/permission_handler.dart';
 
-import '../../../../core/di/di_container.dart';
 import '../../../../core/config/app_config.dart';
 import '../../domain/entities/patient.dart';
 import '../../../examinations/services/audio_recorder_service.dart';
-import '../../../speech/domain/services/stt_router.dart';
 import '../providers/patient_providers.dart';
 
 /// Список пациентов (ТЗ 4.1). Поиск по кличке, чипу, владельцу.
@@ -73,14 +71,14 @@ class _PatientsListPageState extends ConsumerState<PatientsListPage> {
     setState(() => _voiceSearchActive = false);
     if (stopPath == null || stopPath.isEmpty) return;
     try {
-      final router = getIt<SttRouter>();
-      final result = await router.transcribe(stopPath);
-      ref.read(patientSearchQueryProvider.notifier).state = result.text.trim();
-      _searchController.text = result.text.trim();
+      final useCase = ref.read(voiceSearchPatientsUseCaseProvider);
+      final text = await useCase.execute(stopPath);
+      ref.read(patientSearchQueryProvider.notifier).state = text;
+      _searchController.text = text;
       if (!_searchMode) setState(() => _searchMode = true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Поиск: ${result.text.trim()}')),
+          SnackBar(content: Text('Поиск: $text')),
         );
       }
     } catch (e) {

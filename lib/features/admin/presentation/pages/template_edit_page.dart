@@ -1306,6 +1306,8 @@ class _SectionEditPageState extends State<_SectionEditPage> {
   final List<String> _fieldLabelPosition = [];
   final List<bool> _fieldLabelBold = [];
   final List<bool> _fieldLabelItalic = [];
+  /// VET-191: значение по умолчанию для каждого поля раздела.
+  final List<TextEditingController> _fieldDefaultValue = [];
   // VET-068: настройки печатной формы (стиль; позиция/размер — в визуальном редакторе)
   late TextEditingController _printFontSizeController;
   bool _printBold = false;
@@ -1342,6 +1344,7 @@ class _SectionEditPageState extends State<_SectionEditPage> {
       _fieldLabelPosition.add('before');
       _fieldLabelBold.add(false);
       _fieldLabelItalic.add(false);
+      _fieldDefaultValue.add(TextEditingController());
     } else {
       for (final f in fields) {
         _keyControllers.add(TextEditingController(text: f.key));
@@ -1368,6 +1371,7 @@ class _SectionEditPageState extends State<_SectionEditPage> {
         _fieldLabelPosition.add(ps?.labelPosition ?? 'before');
         _fieldLabelBold.add(ps?.labelBold ?? false);
         _fieldLabelItalic.add(ps?.labelItalic ?? false);
+        _fieldDefaultValue.add(TextEditingController(text: f.defaultValue ?? ''));
       }
     }
   }
@@ -1393,6 +1397,9 @@ class _SectionEditPageState extends State<_SectionEditPage> {
       c.dispose();
     }
     for (final c in _rangeUnitControllers) {
+      c.dispose();
+    }
+    for (final c in _fieldDefaultValue) {
       c.dispose();
     }
     super.dispose();
@@ -1423,6 +1430,7 @@ class _SectionEditPageState extends State<_SectionEditPage> {
       _fieldLabelPosition.add('before');
       _fieldLabelBold.add(false);
       _fieldLabelItalic.add(false);
+      _fieldDefaultValue.add(TextEditingController());
     });
   }
 
@@ -1448,6 +1456,8 @@ class _SectionEditPageState extends State<_SectionEditPage> {
       _fieldLabelPosition.removeAt(i);
       _fieldLabelBold.removeAt(i);
       _fieldLabelItalic.removeAt(i);
+      _fieldDefaultValue[i].dispose();
+      _fieldDefaultValue.removeAt(i);
     });
   }
 
@@ -1511,6 +1521,9 @@ class _SectionEditPageState extends State<_SectionEditPage> {
     final labelItalic = _fieldLabelItalic[i];
     _fieldLabelItalic[i] = _fieldLabelItalic[j];
     _fieldLabelItalic[j] = labelItalic;
+    final defaultValC = _fieldDefaultValue[i];
+    _fieldDefaultValue[i] = _fieldDefaultValue[j];
+    _fieldDefaultValue[j] = defaultValC;
   }
 
   void _saveAndPop() {
@@ -1556,6 +1569,7 @@ class _SectionEditPageState extends State<_SectionEditPage> {
         unit = oldField?.unit;
         options = oldField?.options;
       }
+      final defaultVal = _fieldDefaultValue[i].text.trim();
       newFields.add(TemplateField(
         key: key,
         label: label,
@@ -1575,6 +1589,7 @@ class _SectionEditPageState extends State<_SectionEditPage> {
           labelBold: _fieldLabelBold[i],
           labelItalic: _fieldLabelItalic[i],
         ),
+        defaultValue: defaultVal.isEmpty ? null : defaultVal,
       ));
     }
     SectionPrintSettings? printSettings;
@@ -1740,6 +1755,17 @@ class _SectionEditPageState extends State<_SectionEditPage> {
                               onChanged: (v) {
                                 if (v != null) setState(() => _fieldLabelPosition[i] = v);
                               },
+                            ),
+                            const SizedBox(height: 8),
+                            Text('Значение по умолчанию', style: Theme.of(context).textTheme.bodySmall),
+                            const SizedBox(height: 4),
+                            TextField(
+                              controller: _fieldDefaultValue[i],
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                hintText: 'Подставляется при создании протокола',
+                                border: OutlineInputBorder(),
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Text('Тип', style: Theme.of(context).textTheme.bodySmall),

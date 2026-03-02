@@ -1,13 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/di/di_container.dart';
 import '../../domain/entities/vet_clinic.dart';
 import '../../domain/entities/vet_profile.dart';
 import '../../domain/repositories/vet_clinic_repository.dart';
 import '../../domain/repositories/vet_profile_repository.dart';
-
-const _keyCurrentClinicId = 'vet_current_clinic_id';
+import '../../domain/services/current_clinic_service.dart';
 
 /// Провайдер репозитория профиля.
 final vetProfileRepositoryProvider = Provider<VetProfileRepository>((ref) {
@@ -32,21 +30,22 @@ final vetClinicsByProfileProvider =
   return repo.getByProfileId(vetProfileId);
 });
 
-/// ID выбранной клиники (из SharedPreferences).
+/// Провайдер сервиса текущей клиники (VET-182).
+final currentClinicServiceProvider = Provider<CurrentClinicService>((ref) {
+  return getIt<CurrentClinicService>();
+});
+
+/// ID выбранной клиники (синхронизируется с [CurrentClinicService]).
 final currentClinicIdProvider = StateProvider<String?>((_) => null);
 
-/// Загрузить выбранную клинику из SharedPreferences.
+/// Загрузить выбранную клинику через сервис текущей клиники.
 Future<void> loadCurrentClinicId(StateController<String?> notifier) async {
-  final prefs = await SharedPreferences.getInstance();
-  notifier.state = prefs.getString(_keyCurrentClinicId);
+  final service = getIt<CurrentClinicService>();
+  notifier.state = await service.getCurrentClinicId();
 }
 
-/// Сохранить выбранную клинику.
+/// Сохранить выбранную клинику через сервис текущей клиники.
 Future<void> saveCurrentClinicId(String? clinicId) async {
-  final prefs = await SharedPreferences.getInstance();
-  if (clinicId == null) {
-    await prefs.remove(_keyCurrentClinicId);
-  } else {
-    await prefs.setString(_keyCurrentClinicId, clinicId);
-  }
+  final service = getIt<CurrentClinicService>();
+  await service.setCurrentClinicId(clinicId);
 }

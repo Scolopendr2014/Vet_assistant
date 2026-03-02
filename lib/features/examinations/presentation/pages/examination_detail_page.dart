@@ -6,10 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'package:shared_preferences/shared_preferences.dart';
-
 import '../../../../core/di/di_container.dart';
 import '../../../patients/domain/repositories/patient_repository.dart';
+import '../../../patients/presentation/providers/patient_providers.dart';
 import '../../../pdf/services/protocol_pdf_service.dart';
 import '../../../vet_profile/domain/entities/vet_clinic.dart';
 import '../../../vet_profile/domain/repositories/vet_clinic_repository.dart';
@@ -21,6 +20,7 @@ import '../../../templates/domain/entities/protocol_template.dart'
 import '../../../templates/domain/repositories/template_repository.dart';
 import '../../../templates/presentation/providers/template_providers.dart';
 import '../../../vet_profile/domain/repositories/vet_profile_repository.dart';
+import '../../../vet_profile/presentation/providers/vet_profile_providers.dart';
 import '../providers/examination_providers.dart';
 
 /// Детали протокола осмотра (ТЗ 4.3).
@@ -32,10 +32,38 @@ class ExaminationDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncExam = ref.watch(examinationByIdProvider(examinationId));
+    final exam = asyncExam.valueOrNull;
+    final patientAsync = exam != null ? ref.watch(patientDetailProvider(exam.patientId)) : null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Протокол осмотра'),
+        title: patientAsync != null
+            ? patientAsync.when(
+                data: (p) => p != null
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p.name ?? p.species ?? '—',
+                            style: Theme.of(context).textTheme.titleMedium,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          Text(
+                            p.ownerName ?? '—',
+                            style: Theme.of(context).textTheme.bodySmall,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ],
+                      )
+                    : const Text('Протокол осмотра'),
+                loading: () => const Text('Протокол осмотра'),
+                error: (_, __) => const Text('Протокол осмотра'),
+              )
+            : const Text('Протокол осмотра'),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
@@ -441,8 +469,8 @@ class ExaminationDetailPage extends ConsumerWidget {
         vetClinic = await clinicRepo.getById(exam.vetClinicId!);
       }
       if (vetClinic == null) {
-        final prefs = await SharedPreferences.getInstance();
-        final clinicId = prefs.getString('vet_current_clinic_id');
+        final clinicId =
+            await ref.read(currentClinicServiceProvider).getCurrentClinicId();
         if (clinicId != null) {
           vetClinic = await clinicRepo.getById(clinicId);
         }

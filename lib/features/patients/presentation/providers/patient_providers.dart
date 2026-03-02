@@ -4,9 +4,16 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/di/di_container.dart';
 import '../../domain/entities/patient.dart';
 import '../../domain/repositories/patient_repository.dart';
+import '../../domain/usecases/voice_search_patients_use_case.dart';
 
 final patientRepositoryProvider = Provider<PatientRepository>((ref) {
   return getIt<PatientRepository>();
+});
+
+/// Провайдер use case голосового поиска пациентов (VET-181).
+final voiceSearchPatientsUseCaseProvider =
+    Provider<VoiceSearchPatientsUseCase>((ref) {
+  return getIt<VoiceSearchPatientsUseCase>();
 });
 
 final patientsListProvider = FutureProvider.autoDispose<List<Patient>>((ref) async {

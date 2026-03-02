@@ -1,7 +1,6 @@
 import 'package:go_router/go_router.dart';
 
-import '../../core/di/di_container.dart';
-import '../vet_profile/domain/repositories/vet_profile_repository.dart';
+import '../vet_profile/domain/services/initial_route_resolver.dart';
 import '../patients/presentation/pages/patients_list_page.dart';
 import '../patients/presentation/pages/patient_detail_page.dart';
 import '../patients/presentation/pages/patient_form_page.dart';
@@ -18,27 +17,19 @@ import '../vet_profile/presentation/pages/vet_clinic_form_page.dart';
 
 class AppRouter {
   late final GoRouter config;
-  
-  AppRouter() {
+
+  AppRouter(this._redirectResolver) {
+    _initConfig();
+  }
+
+  final InitialRouteResolver _redirectResolver;
+
+  void _initConfig() {
     config = GoRouter(
       initialLocation: '/',
       redirect: (context, state) async {
         final location = state.uri.path;
-        if (location.startsWith('/profile/edit') ||
-            location.startsWith('/profile/clinics') ||
-            location == '/clinic-select') {
-          return null;
-        }
-        if (location == '/' || location.isEmpty) {
-          final profileRepo = getIt<VetProfileRepository>();
-          final profile = await profileRepo.get();
-          if (profile == null) return '/profile/edit';
-          return '/clinic-select';
-        }
-        final profileRepo = getIt<VetProfileRepository>();
-        final profile = await profileRepo.get();
-        if (profile == null) return '/profile/edit';
-        return null;
+        return _redirectResolver.getRedirectPath(location);
       },
       routes: [
         GoRoute(

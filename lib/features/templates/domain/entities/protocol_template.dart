@@ -187,6 +187,7 @@ class ProtocolTemplate {
           validation: field.validation,
           extraction: field.extraction,
           printSettings: field.printSettings,
+          defaultValue: field.defaultValue,
         ));
       }
       newSections.add(section.copyWith(fields: newFields));
@@ -754,6 +755,7 @@ class FieldExtraction {
   }
 }
 
+/// Поле раздела шаблона протокола. VET-191: [defaultValue] — значение по умолчанию при создании протокола.
 class TemplateField {
   const TemplateField({
     required this.key,
@@ -765,6 +767,7 @@ class TemplateField {
     this.validation,
     this.extraction,
     this.printSettings,
+    this.defaultValue,
   });
 
   final String key;
@@ -777,6 +780,8 @@ class TemplateField {
   final FieldExtraction? extraction;
   /// VET-068: настройки печати (например автоувеличение высоты при переполнении).
   final FieldPrintSettings? printSettings;
+  /// VET-191: значение по умолчанию для поля при создании протокола.
+  final String? defaultValue;
 
   factory TemplateField.fromJson(Map<String, dynamic> json) {
     final opts = json['options'] as List<dynamic>?;
@@ -794,6 +799,7 @@ class TemplateField {
           ? FieldExtraction.fromJson(ext)
           : null,
       printSettings: printJson != null ? FieldPrintSettings.fromJson(printJson) : null,
+      defaultValue: json['defaultValue'] as String?,
     );
   }
 
@@ -806,6 +812,7 @@ class TemplateField {
       'required': required,
       'options': options,
       'validation': validation,
+      if (defaultValue != null && defaultValue!.isNotEmpty) 'defaultValue': defaultValue,
       if (printSettings != null && printSettings!.toJson().isNotEmpty) 'printSettings': printSettings!.toJson(),
     };
   }

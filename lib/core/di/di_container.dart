@@ -17,7 +17,12 @@ import '../../features/vet_profile/domain/repositories/vet_profile_repository.da
 import '../../features/vet_profile/data/repositories/vet_profile_repository_impl.dart';
 import '../../features/vet_profile/domain/repositories/vet_clinic_repository.dart';
 import '../../features/vet_profile/data/repositories/vet_clinic_repository_impl.dart';
+import '../../features/vet_profile/domain/services/current_clinic_service.dart';
+import '../../features/vet_profile/data/services/current_clinic_service_impl.dart';
+import '../../features/vet_profile/domain/services/initial_route_resolver.dart';
+import '../../features/vet_profile/data/services/initial_route_resolver_impl.dart';
 import '../../features/examinations/domain/usecases/save_examination_use_case.dart';
+import '../../features/patients/domain/usecases/voice_search_patients_use_case.dart';
 
 final getIt = GetIt.instance;
 
@@ -36,11 +41,6 @@ Future<void> setupDependencies() async {
   );
   getIt.registerSingleton<ExaminationRepository>(
     ExaminationRepositoryImpl(db),
-  );
-
-  // Роутер навигации
-  getIt.registerSingleton<AppRouter>(
-    AppRouter(),
   );
 
   // STT: провайдеры и роутер
@@ -66,6 +66,21 @@ Future<void> setupDependencies() async {
     VetClinicRepositoryImpl(db),
   );
 
+  // VET-186: резолвер редиректа (проверка профиля без прямого доступа к репозиторию в роутере)
+  getIt.registerSingleton<InitialRouteResolver>(
+    InitialRouteResolverImpl(getIt<VetProfileRepository>()),
+  );
+
+  // Роутер навигации
+  getIt.registerSingleton<AppRouter>(
+    AppRouter(getIt<InitialRouteResolver>()),
+  );
+
+  // VET-182: сервис текущей клиники (чтение/запись через доменный слой)
+  getIt.registerSingleton<CurrentClinicService>(
+    CurrentClinicServiceImpl(),
+  );
+
   // Use case: сохранение протокола осмотра (разгрузка ExaminationCreatePage)
   getIt.registerSingleton<SaveExaminationUseCase>(
     SaveExaminationUseCase(
@@ -74,5 +89,10 @@ Future<void> setupDependencies() async {
       vetProfileRepository: getIt<VetProfileRepository>(),
       vetClinicRepository: getIt<VetClinicRepository>(),
     ),
+  );
+
+  // VET-181: use case голосового поиска пациентов
+  getIt.registerSingleton<VoiceSearchPatientsUseCase>(
+    VoiceSearchPatientsUseCase(sttRouter: getIt<SttRouter>()),
   );
 }

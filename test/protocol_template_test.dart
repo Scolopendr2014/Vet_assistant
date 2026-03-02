@@ -380,6 +380,28 @@ void main() {
       final f2 = TemplateField.fromJson(out);
       expect(f2.type, 'photo');
     });
+
+    test('fromJson and toJson roundtrip for defaultValue (VET-191)', () {
+      final json = {'key': 'notes', 'label': 'Примечания', 'type': 'text', 'defaultValue': 'Нет'};
+      final f = TemplateField.fromJson(json);
+      expect(f.defaultValue, 'Нет');
+      final out = f.toJson();
+      expect(out['defaultValue'], 'Нет');
+      final f2 = TemplateField.fromJson(out);
+      expect(f2.defaultValue, 'Нет');
+    });
+
+    test('fromJson field without defaultValue has null defaultValue', () {
+      final json = {'key': 'k', 'label': 'L', 'type': 'text'};
+      final f = TemplateField.fromJson(json);
+      expect(f.defaultValue, isNull);
+    });
+
+    test('toJson field with empty defaultValue omits key', () {
+      const f = TemplateField(key: 'k', label: 'L', type: 'text', defaultValue: '');
+      final out = f.toJson();
+      expect(out.containsKey('defaultValue'), false);
+    });
   });
 
   group('FieldExtraction', () {
